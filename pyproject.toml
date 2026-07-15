@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Bamdad Dashtban" }]
 keywords = ["multi-view-geometry", "triangulation", "occlusion", "benchmark", "computer-vision"]
-dependencies = ["numpy>=1.26"]
+dependencies = ["numpy>=1.26", "pydantic>=2.7"]
 
 [project.urls]
 Homepage = "https://github.com/bamdadd/multicam-occlusion"
@@ -43,3 +43,4 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.12"
 strict = true
 files = ["src"]
+plugins = ["pydantic.mypy"]

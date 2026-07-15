@@ -6,6 +6,16 @@ when it is occluded in some views; a single view is fundamentally insufficient
 """
 
 from multicam_occlusion.occlusion import drop_k_mask, occlude
+from multicam_occlusion.sources import (
+    CameraCalibration,
+    CameraStream,
+    FileFrameSource,
+    Frame,
+    FrameBundle,
+    FrameRef,
+    FrameSource,
+    Manifest,
+)
 from multicam_occlusion.triangulation import (
     build_ring_cameras,
     project_points,
@@ -13,6 +23,14 @@ from multicam_occlusion.triangulation import (
 )
 
 __all__ = [
+    "CameraCalibration",
+    "CameraStream",
+    "FileFrameSource",
+    "Frame",
+    "FrameBundle",
+    "FrameRef",
+    "FrameSource",
+    "Manifest",
     "build_ring_cameras",
     "drop_k_mask",
     "occlude",
