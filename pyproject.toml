@@ -27,6 +27,8 @@ dev = [
     "mypy>=1.11",
     "pre-commit>=3.8",
 ]
+# Optional: only needed to regenerate the docs figure. Not synced in CI.
+docs = ["matplotlib>=3.8"]
 
 [tool.ruff]
 line-length = 100
