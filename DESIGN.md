@@ -60,6 +60,63 @@ image observations:
 This stays *planned* until the render pipeline lands; the metric and protocol
 below are defined so they apply unchanged to rendered observations.
 
+## Frame/Video source seam
+
+Where do the per-view observations *come from*? The core (triangulation,
+occlusion, metrics) must not care. It consumes a single narrow Protocol —
+`FrameSource` (`src/multicam_occlusion/sources.py`) — and never imports a
+concrete backend. This is the **open-closed seam**: new ingestion backends are
+*added*, the core is not *modified*.
+
+```
+                 ┌─────────────────────────────┐
+   producers ──▶ │  manifest (pydantic schema)  │ ◀── multicam-sim writes this
+                 └─────────────┬───────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │  FrameSource (Proto) │  ← the only thing the core sees
+                    └──────────┬──────────┘
+        ┌──────────────────────┼───────────────────────┐
+        ▼                      ▼                        ▼
+  FileFrameSource      (GStreamer/RTSP —          (DeepStream — future
+  (v1, on disk)         future plugin)             hardware-decode plugin)
+```
+
+**The interface.** `FrameSource` exposes exactly two things:
+
+- `cameras()` → per-camera calibration (`CameraCalibration`: `id`, intrinsics
+  `K`, extrinsics `R | t`, plus a `projection_matrix()` that returns the same
+  `P = K[R|t]` the triangulation core already consumes).
+- `frames()` → an iterator of `FrameBundle`s, one per synchronized timestamp,
+  yielded in ascending timestamp order (cameras within a bundle in manifest
+  order) so a run is deterministic.
+
+**The manifest** is a typed, JSON-serializable pydantic schema
+(`Manifest` → `CameraCalibration[]` + `CameraStream[]`). Each `CameraStream` is
+backed by *exactly one* of a **frame sequence** (`FrameRef[]`, each a path +
+timestamp) or a **video** (`mp4` path + per-frame `timestamps`). Matrices travel
+as nested lists (no NumPy in the wire format) and surface as arrays via methods,
+so the schema stays dependency-light and round-trips cleanly.
+
+**v1 backend — `FileFrameSource`.** Reads a manifest + frame sequences from
+disk. Frame-sequence frames load with `numpy.load` (`.npy`), keeping CI
+numpy-only; a video stream is exposed as **path metadata only** — no decoder
+dependency, because the synthetic benchmark needs no live capture. `image` is
+`None` for video-backed frames until a decoding backend fills it.
+
+**Symmetry with multicam-sim.** The manifest the file backend *reads* is the
+exact schema a synthetic producer (`multicam-sim`: `mp4` / frame-seq + manifest)
+*writes*. One contract, two ends — the producer and the benchmark never drift.
+
+**Live-capture backend (roadmap).** Real multi-camera capture — hardware
+decode, RTSP ingest, cross-camera sync — is the domain of GStreamer / RTSP /
+NVIDIA DeepStream, the industry-standard stack. Such a backend is added as
+another `FrameSource` implementation (its own optional dependency group) and
+plugs in **without touching the core**: same `cameras()` / `frames()` contract,
+live pixels instead of `.npy` files. This is deliberately *not* built here — the
+synthetic benchmark has no live-capture need — but the seam is where it lands.
+Tracked as a `help wanted` issue.
+
 ## Triangulation method (runs today)
 
 Recovery uses **linear DLT triangulation** (Hartley & Zisserman, Ch. 12). Each
