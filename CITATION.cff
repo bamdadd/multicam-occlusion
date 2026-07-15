@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this benchmark, please cite it as below."
+title: "multicam-occlusion: A multi-camera synthetic occlusion benchmark"
+authors:
+  - family-names: Dashtban
+    given-names: Bamdad
+version: 0.1.0
+license: Apache-2.0
+repository-code: "https://github.com/bamdadd/multicam-occlusion"
+keywords:
+  - multi-view geometry
+  - triangulation
+  - occlusion
+  - benchmark
+  - computer vision
