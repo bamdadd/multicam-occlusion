@@ -509,6 +509,10 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+bench = [
+    { name = "matplotlib" },
+    { name = "multicam-sim" },
+]
 dev = [
     { name = "mypy" },
     { name = "pre-commit" },
@@ -526,6 +530,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+bench = [
+    { name = "matplotlib", specifier = ">=3.8" },
+    { name = "multicam-sim", git = "https://github.com/bamdadd/multicam-sim?rev=main" },
+]
 dev = [
     { name = "mypy", specifier = ">=1.11" },
     { name = "pre-commit", specifier = ">=3.8" },
@@ -533,6 +541,16 @@ dev = [
     { name = "ruff", specifier = ">=0.6" },
 ]
 docs = [{ name = "matplotlib", specifier = ">=3.8" }]
+
+[[package]]
+name = "multicam-sim"
+version = "0.1.0"
+source = { git = "https://github.com/bamdadd/multicam-sim?rev=main#3b7615246e661c2c2e950e9881310e2aef628306" }
+dependencies = [
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pydantic" },
+]
 
 [[package]]
 name = "mypy"
