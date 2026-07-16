@@ -1,9 +1,9 @@
 """The association metric: is the fused (action <-> change) pairing correct?
 
-This generalizes "did we correctly link the box's contents to the open order?"
-to "did we correctly link each worker action to the assembly change it caused?"
-The score is computed over (action, item-change) *pairs*, not over frames or
-points, because the pair is the unit the mode is supposed to recover.
+This generalizes "did we correctly reconcile the assembled contents against the
+order?" to "did we correctly link each operator action to the assembly change it
+caused?" The score is computed over (action, item-change) *pairs*, not over
+frames or points, because the pair is the unit the mode is supposed to recover.
 
 A predicted :class:`FusedInteraction` is a **true positive** when a ground-truth
 interaction exists with the same ``(actor_id, item_id)`` and an action time

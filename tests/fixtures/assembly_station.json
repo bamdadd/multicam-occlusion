@@ -95,7 +95,7 @@
   ],
   "entities": [
     {
-      "id": "worker",
+      "id": "operator",
       "frames": [
         {
           "frame": 0,
@@ -772,7 +772,7 @@
       ]
     },
     {
-      "id": "item_0",
+      "id": "part_a",
       "frames": [
         {
           "frame": 0,
@@ -1449,7 +1449,7 @@
       ]
     },
     {
-      "id": "item_1",
+      "id": "part_b",
       "frames": [
         {
           "frame": 0,
@@ -2126,7 +2126,7 @@
       ]
     },
     {
-      "id": "item_2",
+      "id": "part_c",
       "frames": [
         {
           "frame": 0,

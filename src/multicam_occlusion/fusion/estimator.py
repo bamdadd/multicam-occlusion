@@ -1,11 +1,11 @@
-"""The fusion estimator: correlate human actions with assembly changes.
+"""The fusion estimator: correlate operator actions with assembly changes.
 
 This is the heart of the complementary-fusion mode. Cross-view *triangulation*
-is impossible here by construction — the human action and the item change are
+is impossible here by construction — the operator action and the item change are
 different 3D things seen by different cameras — so recovery is not geometric but
-*temporal*: an action at time ``t`` in the human view should be followed, within
-a short causal window, by an assembly change at ``~t`` in the worktop view. That
-correspondence is the joint scene state.
+*temporal*: an action at time ``t`` in the operator view should be followed,
+within a short causal window, by an assembly change at ``~t`` in the item view.
+That correspondence is the joint scene state.
 
 :class:`FusionEstimator` is the pluggable Protocol (mirroring the ``FrameSource``
 seam); :class:`TemporalProximityEstimator` is the deterministic default. Its
@@ -31,17 +31,17 @@ from .detectors import (
     ActionDetector,
     CameraRoles,
     DisplacementStateDetector,
+    ItemStateDetector,
     ReachActionDetector,
-    WorktopStateDetector,
     partition_by_visibility,
 )
 from .observations import (
     ActionEvent,
     AssemblyChangeEvent,
     FusedInteraction,
-    HumanViewObservation,
+    ItemViewObservation,
     JointSceneState,
-    WorktopViewObservation,
+    OperatorViewObservation,
 )
 from .scene_manifest import SceneManifest
 
@@ -52,8 +52,8 @@ class FusionEstimator(Protocol):
 
     def fuse(
         self,
-        human: HumanViewObservation,
-        worktop: WorktopViewObservation,
+        operator: OperatorViewObservation,
+        item: ItemViewObservation,
     ) -> JointSceneState:
         """Correlate actions with assembly changes into a joint scene state."""
         ...
@@ -98,11 +98,11 @@ class TemporalProximityEstimator:
 
     def fuse(
         self,
-        human: HumanViewObservation,
-        worktop: WorktopViewObservation,
+        operator: OperatorViewObservation,
+        item: ItemViewObservation,
     ) -> JointSceneState:
-        actions = sorted(human.actions, key=lambda a: a.time)
-        changes = sorted(worktop.changes, key=lambda c: c.time)
+        actions = sorted(operator.actions, key=lambda a: a.time)
+        changes = sorted(item.changes, key=lambda c: c.time)
         used_action: set[int] = set()
         interactions: list[FusedInteraction] = []
         matched_changes: set[int] = set()
@@ -148,7 +148,7 @@ def fuse_scene(
     roles: CameraRoles,
     *,
     action_detector: ActionDetector | None = None,
-    state_detector: WorktopStateDetector | None = None,
+    state_detector: ItemStateDetector | None = None,
     estimator: FusionEstimator | None = None,
 ) -> JointSceneState:
     """End-to-end fusion over a scene manifest.
@@ -158,8 +158,8 @@ def fuse_scene(
     Every stage defaults to its deterministic implementation, so the whole
     pipeline runs from a manifest and a :class:`CameraRoles` alone.
 
-    Assumes a single actor (the packing-station case). If the router finds more
-    than one actor entity, their actions are merged into one human view.
+    Assumes a single operator (the assembly-station case). If the router finds
+    more than one actor entity, their actions are merged into one operator view.
     """
     action_detector = action_detector or ReachActionDetector()
     state_detector = state_detector or DisplacementStateDetector()
@@ -168,14 +168,16 @@ def fuse_scene(
     partition = partition_by_visibility(manifest, roles)
 
     actions: list[ActionEvent] = []
-    actor_id = partition.actors[0] if partition.actors else "actor"
+    actor_id = partition.actors[0] if partition.actors else "operator"
     for aid in partition.actors:
         actions.extend(action_detector.detect(manifest, aid))
-    human = HumanViewObservation(camera_id=roles.human_camera, actor_id=actor_id, actions=actions)
+    operator = OperatorViewObservation(
+        camera_id=roles.operator_camera, actor_id=actor_id, actions=actions
+    )
 
     changes: list[AssemblyChangeEvent] = []
     for iid in partition.items:
         changes.extend(state_detector.detect(manifest, iid))
-    worktop = WorktopViewObservation(camera_id=roles.worktop_camera, changes=changes)
+    item_view = ItemViewObservation(camera_id=roles.item_camera, changes=changes)
 
-    return estimator.fuse(human, worktop)
+    return estimator.fuse(operator, item_view)

@@ -5,11 +5,11 @@ the manifest schema carries *geometry*, not semantics: there is no "action
 label" or "assembly state" field, so those must be read off the motion. Two
 extractor Protocols do that, each with a deterministic default:
 
-* :class:`ActionDetector` turns the human-view entity's trajectory into
+* :class:`ActionDetector` turns the operator-view entity's trajectory into
   :class:`ActionEvent`s. The default :class:`ReachActionDetector` reads a
-  reach-and-return: a local minimum of a chosen keypoint's height (the worker's
-  hand dipping to the worktop) below the trajectory's own midline is a "place".
-* :class:`WorktopStateDetector` turns each worktop-view item's trajectory into
+  reach-and-return: a local minimum of a chosen keypoint's height (the operator's
+  hand dipping to the station) below the trajectory's own midline is a "place".
+* :class:`ItemStateDetector` turns each item's trajectory into
   :class:`AssemblyChangeEvent`s. The default :class:`DisplacementStateDetector`
   fires when an item's tracked point jumps more than a threshold between frames.
 
@@ -17,9 +17,9 @@ Both are Protocols (``@runtime_checkable``, mirroring the ``FrameSource`` seam),
 so a learned appearance/action backend drops in without touching the estimator.
 
 :func:`partition_by_visibility` is the asymmetric-visibility router: given which
-camera is the human view and which is the worktop view, it reads each entity's
+camera is the operator view and which is the item view, it reads each entity's
 per-camera ``visible`` labels to decide which camera contributes which entity —
-an entity seen in the human camera but not the worktop one is an actor; the
+an entity seen in the operator camera but not the item one is an actor; the
 reverse is an item. That asymmetry *is* the mode.
 """
 
@@ -36,19 +36,19 @@ from .scene_manifest import CamId, ManifestEntity, SceneManifest
 class CameraRoles(BaseModel):
     """Which camera plays which role in the asymmetric rig.
 
-    ``human_camera`` sees the worker (actions); ``worktop_camera`` sees the items
-    (assembly state). They must differ — complementary fusion is meaningless if
-    one camera sees everything.
+    ``operator_camera`` sees the operator (actions); ``item_camera`` sees the
+    items (assembly state). They must differ — complementary fusion is
+    meaningless if one camera sees everything.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    human_camera: CamId
-    worktop_camera: CamId
+    operator_camera: CamId
+    item_camera: CamId
 
     def _check(self) -> None:
-        if self.human_camera == self.worktop_camera:
-            raise ValueError("human_camera and worktop_camera must differ")
+        if self.operator_camera == self.item_camera:
+            raise ValueError("operator_camera and item_camera must differ")
 
 
 class ScenePartition(BaseModel):
@@ -63,21 +63,21 @@ class ScenePartition(BaseModel):
 def partition_by_visibility(manifest: SceneManifest, roles: CameraRoles) -> ScenePartition:
     """Split entities into actors and items by their per-camera visibility.
 
-    An entity visible (in at least one frame) in the human camera but never in
-    the worktop camera is an **actor**; visible in the worktop camera but never
-    in the human camera, an **item**. An entity visible in both (or neither) is
-    not complementary and is left out of both lists — this router is precisely
-    the asymmetric case.
+    An entity visible (in at least one frame) in the operator camera but never in
+    the item camera is an **actor**; visible in the item camera but never in the
+    operator camera, an **item**. An entity visible in both (or neither) is not
+    complementary and is left out of both lists — this router is precisely the
+    asymmetric case.
     """
     roles._check()
     actors: list[str] = []
     items: list[str] = []
     for entity in manifest.entities:
-        in_human = entity.visible_frame_count(roles.human_camera) > 0
-        in_worktop = entity.visible_frame_count(roles.worktop_camera) > 0
-        if in_human and not in_worktop:
+        in_operator = entity.visible_frame_count(roles.operator_camera) > 0
+        in_item = entity.visible_frame_count(roles.item_camera) > 0
+        if in_operator and not in_item:
             actors.append(entity.id)
-        elif in_worktop and not in_human:
+        elif in_item and not in_operator:
             items.append(entity.id)
     return ScenePartition(actors=actors, items=items)
 
@@ -96,7 +96,7 @@ def _track_point(entity: ManifestEntity, point: str | None) -> str:
 
 @runtime_checkable
 class ActionDetector(Protocol):
-    """Turns a human-view entity into timed :class:`ActionEvent`s."""
+    """Turns an operator-view entity into timed :class:`ActionEvent`s."""
 
     def detect(self, manifest: SceneManifest, actor_id: str) -> list[ActionEvent]:
         """Emit the actions of ``actor_id`` (an entity id), in time order."""
@@ -104,8 +104,8 @@ class ActionDetector(Protocol):
 
 
 @runtime_checkable
-class WorktopStateDetector(Protocol):
-    """Turns a worktop-view item into timed :class:`AssemblyChangeEvent`s."""
+class ItemStateDetector(Protocol):
+    """Turns an item entity into timed :class:`AssemblyChangeEvent`s."""
 
     def detect(self, manifest: SceneManifest, item_id: str) -> list[AssemblyChangeEvent]:
         """Emit the assembly-state changes of ``item_id``, in time order."""
@@ -117,8 +117,8 @@ class ReachActionDetector:
 
     Tracks one keypoint (``point``, else the entity's first point) and finds
     local minima of its height along ``axis`` (default z) that fall below the
-    trajectory's own midline ``(min + max) / 2``. Each such dip — the worker
-    reaching down to the worktop and lifting away — is one ``label`` action.
+    trajectory's own midline ``(min + max) / 2``. Each such dip — the operator
+    reaching down to the station and lifting away — is one ``label`` action.
     Deterministic: no RNG, no thresholds tied to a specific fixture's scale.
     """
 
@@ -155,11 +155,11 @@ class ReachActionDetector:
 
 
 class DisplacementStateDetector:
-    """Default :class:`WorktopStateDetector`: a jump in position is a change.
+    """Default :class:`ItemStateDetector`: a jump in position is a change.
 
     Tracks one item point (``point``, else first) and fires a change whenever the
     Euclidean displacement between consecutive frames exceeds ``min_step``. Models
-    an item being placed or repositioned on the worktop; stationary items produce
+    an item being placed or repositioned at the station; stationary items produce
     nothing. Deterministic and scale-explicit via ``min_step``.
     """
 

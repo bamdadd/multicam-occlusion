@@ -1,13 +1,14 @@
 """Complementary-fusion mode: action <-> assembly-change association on a fixture.
 
-The packing-station fixture (``tests/fixtures/packing_station.json``, a
+The assembly-station fixture (``tests/fixtures/assembly_station.json``, a
 multicam-sim scene manifest) has an asymmetric two-camera rig: camera 0 sees the
-worker, camera 1 sees the items. The worker places twice and reaches a third
-time (a distractor); a third item moves outside the causal window (a change with
-no cause). Ground truth is two interactions. These tests assert the pipeline
-recovers exactly those two, refuses both distractors, and that the association
-metric measures the outcome — including that a too-wide lag window scores a
-false positive.
+operator, camera 1 sees the parts. The operator places twice and reaches a third
+time (a distractor); a third part moves outside the causal window (a change with
+no cause). Ground truth is two interactions — the order is ``part_a`` + ``part_b``.
+These tests assert the pipeline recovers exactly those two, refuses both
+distractors, that the association metric measures the outcome (including a
+false positive under a too-wide lag window), and that order verification reads
+the fused scene back against the order.
 """
 
 from __future__ import annotations
@@ -21,21 +22,24 @@ from multicam_occlusion.fusion import (
     CameraRoles,
     FusionEstimator,
     GroundTruthInteraction,
+    ItemStateDetector,
+    OrderStatus,
     SceneManifest,
     TemporalProximityEstimator,
-    WorktopStateDetector,
     association_metric,
     fuse_scene,
     partition_by_visibility,
+    verify_order,
 )
 
-FIXTURE = Path(__file__).parent / "fixtures" / "packing_station.json"
-ROLES = CameraRoles(human_camera=0, worktop_camera=1)
+FIXTURE = Path(__file__).parent / "fixtures" / "assembly_station.json"
+ROLES = CameraRoles(operator_camera=0, item_camera=1)
+ORDER = ["part_a", "part_b"]
 
-# Known by construction of the fixture (see build_packing_station.py).
+# Known by construction of the fixture (see build_assembly_station.py).
 GROUND_TRUTH = [
-    GroundTruthInteraction(actor_id="worker", item_id="item_0", action_time=0.5, change_time=0.6),
-    GroundTruthInteraction(actor_id="worker", item_id="item_1", action_time=1.3, change_time=1.4),
+    GroundTruthInteraction(actor_id="operator", item_id="part_a", action_time=0.5, change_time=0.6),
+    GroundTruthInteraction(actor_id="operator", item_id="part_b", action_time=1.3, change_time=1.4),
 ]
 
 
@@ -44,11 +48,11 @@ def manifest() -> SceneManifest:
     return SceneManifest.from_json(FIXTURE)
 
 
-def test_asymmetric_visibility_routes_worker_and_items(manifest: SceneManifest) -> None:
-    """The worker routes to the human camera, items to the worktop camera."""
+def test_asymmetric_visibility_routes_operator_and_parts(manifest: SceneManifest) -> None:
+    """The operator routes to the operator camera, parts to the item camera."""
     partition = partition_by_visibility(manifest, ROLES)
-    assert partition.actors == ["worker"]
-    assert partition.items == ["item_0", "item_1", "item_2"]
+    assert partition.actors == ["operator"]
+    assert partition.items == ["part_a", "part_b", "part_c"]
 
 
 def test_default_detectors_are_pluggable_protocols() -> None:
@@ -56,7 +60,7 @@ def test_default_detectors_are_pluggable_protocols() -> None:
     from multicam_occlusion.fusion import DisplacementStateDetector, ReachActionDetector
 
     assert isinstance(ReachActionDetector(), ActionDetector)
-    assert isinstance(DisplacementStateDetector(), WorktopStateDetector)
+    assert isinstance(DisplacementStateDetector(), ItemStateDetector)
     assert isinstance(TemporalProximityEstimator(), FusionEstimator)
 
 
@@ -66,19 +70,19 @@ def test_fusion_recovers_two_interactions_and_refuses_distractors(
     """Two real (action, change) pairs recovered; both distractors refused."""
     state = fuse_scene(manifest, ROLES)
 
-    # Exactly the two real interactions, correctly linked worker->item.
+    # Exactly the two real interactions, correctly linked operator->part.
     assert len(state.interactions) == 2
     linked = {
         (i.item_id, round(i.action_time, 3), round(i.change_time, 3)) for i in state.interactions
     }
-    assert linked == {("item_0", 0.5, 0.6), ("item_1", 1.3, 1.4)}
-    assert all(i.actor_id == "worker" and i.action_label == "place" for i in state.interactions)
+    assert linked == {("part_a", 0.5, 0.6), ("part_b", 1.3, 1.4)}
+    assert all(i.actor_id == "operator" and i.action_label == "place" for i in state.interactions)
     assert all(0.0 < i.lag <= 0.5 and 0.0 < i.confidence <= 1.0 for i in state.interactions)
 
     # The distractor reach (t=0.9) is refused, not forced into a pair.
     assert [round(a.time, 3) for a in state.unassociated_actions] == [0.9]
-    # The out-of-window item move (t=1.9) is refused too.
-    assert [(c.item_id, round(c.time, 3)) for c in state.unassociated_changes] == [("item_2", 1.9)]
+    # The out-of-window part move (t=1.9) is refused too.
+    assert [(c.item_id, round(c.time, 3)) for c in state.unassociated_changes] == [("part_c", 1.9)]
 
 
 def test_association_metric_is_perfect_on_the_fixture(manifest: SceneManifest) -> None:
@@ -99,7 +103,7 @@ def test_association_metric_is_perfect_on_the_fixture(manifest: SceneManifest) -
 
 
 def test_too_wide_lag_window_scores_a_false_positive(manifest: SceneManifest) -> None:
-    """A 1.0s window wrongly links the distractor action to item_2 -> precision drops.
+    """A 1.0s window wrongly links the distractor action to part_c -> precision drops.
 
     This is the metric doing its job: the extra pairing is a false positive, so
     precision falls to 2/3 while recall stays 1.0. It is what makes the perfect
@@ -108,8 +112,32 @@ def test_too_wide_lag_window_scores_a_false_positive(manifest: SceneManifest) ->
     state = fuse_scene(manifest, ROLES, estimator=TemporalProximityEstimator(max_lag=1.0))
     metrics = association_metric(state.interactions, GROUND_TRUTH)
 
-    assert len(state.interactions) == 3  # item_2 spuriously associated
+    assert len(state.interactions) == 3  # part_c spuriously associated
     assert metrics.true_positives == 2
     assert metrics.false_positives == 1
     assert metrics.precision == pytest.approx(2.0 / 3.0)
     assert metrics.recall == 1.0
+
+
+def test_order_verification_marks_the_order_fulfilled(manifest: SceneManifest) -> None:
+    """Verifying the fused scene against the order: both lines fulfilled."""
+    state = fuse_scene(manifest, ROLES)
+    verified = verify_order(state, ORDER)
+
+    assert verified.ok()
+    assert [(line.item_id, line.status) for line in verified.lines] == [
+        ("part_a", OrderStatus.FULFILLED),
+        ("part_b", OrderStatus.FULFILLED),
+    ]
+
+
+def test_order_verification_flags_extra_when_lag_window_is_too_wide(
+    manifest: SceneManifest,
+) -> None:
+    """The spurious part_c interaction surfaces as an EXTRA line, not silently."""
+    state = fuse_scene(manifest, ROLES, estimator=TemporalProximityEstimator(max_lag=1.0))
+    verified = verify_order(state, ORDER)
+
+    assert not verified.ok()
+    extras = verified.by_status(OrderStatus.EXTRA)
+    assert [e.item_id for e in extras] == ["part_c"]
