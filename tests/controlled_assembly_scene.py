@@ -1,30 +1,33 @@
-"""Generate the assembly-station fixture manifest (multicam-sim scene schema).
+"""A CONTROLLED (not sim-generated) assembly-station scene for the causal metric.
 
-Regenerate with::
+This scene is **hand-authored in-memory**, in the multicam-sim scene schema, to
+exercise the fusion mode's *causal* action↔assembly-change association — the half
+that is NOT yet reproducible on real multicam-sim output, because the shipped
+``examples/assembly_station.py`` preset frames an operator but does not emit
+reaches timestamped to each part placement (tracked upstream; see
+``docs/fusion-design.md``). Order verification, by contrast, runs on real
+generated data — see ``tests/test_fusion_sim.py`` and the committed fixture under
+``tests/fixtures/sim_assembly_station/``.
 
-    python tests/fixtures/build_assembly_station.py
-
-The scene is a deliberately small, asymmetric two-camera rig at an
-order-fulfilment station:
+The scene is a deliberately small, asymmetric two-camera rig:
 
 * **camera 0** — overview: sees the ``operator`` entity (never the parts).
 * **camera 1** — at the station: sees the ``part_*`` entities (never the operator).
 
-Every point carries a ``per_cam`` entry for *both* cameras (visible in one,
-``visible=false`` in the other) — exactly as ``multicam-sim``'s ``build_manifest``
-emits — so the asymmetric-visibility router is genuinely exercised.
+Every point carries a ``per_cam`` entry for *both* cameras (``visible`` in one,
+``false`` in the other) — as ``multicam-sim``'s ``build_manifest`` emits — so the
+asymmetric-visibility router is genuinely exercised.
 
-The operator's hand dips to the station three times (a "place"); two of those
-dips cause a part to be assembled, the third is a **distractor** (a reach with no
-resulting change). A third part moves late, *outside* the causal lag window — a
-change with no cause. Ground truth is therefore two real interactions (the order
-is ``part_a`` + ``part_b``), and a faithful estimator must refuse both distractors.
+The operator's hand dips to the station three times (a "place"); two dips cause a
+part to be assembled, the third is a **distractor** (a reach with no resulting
+change). A third part moves late, *outside* the causal lag window — a change with
+no cause. Ground truth is therefore two real interactions (the order is
+``part_a`` + ``part_b``), and a faithful estimator must refuse both distractors.
+It is fully deterministic (no RNG, no wall-clock), so the metric on it is exact.
 """
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
 FPS = 10.0
@@ -100,6 +103,7 @@ def _part_entity(
 
 
 def build() -> dict[str, Any]:
+    """The controlled scene as a plain manifest dict (validate with SceneManifest)."""
     return {
         "fps": FPS,
         "num_frames": NUM_FRAMES,
@@ -113,13 +117,3 @@ def build() -> dict[str, Any]:
             _part_entity("part_c", (0.0, -0.5, 0.8), move_frame=19, dy=-0.3),
         ],
     }
-
-
-def main() -> None:
-    out = Path(__file__).with_name("assembly_station.json")
-    out.write_text(json.dumps(build(), indent=2) + "\n")
-    print(f"wrote {out}")
-
-
-if __name__ == "__main__":
-    main()
