@@ -3,6 +3,43 @@
 [![CI](https://github.com/bamdadd/multicam-occlusion/actions/workflows/ci.yml/badge.svg)](https://github.com/bamdadd/multicam-occlusion/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
+> **As an object is occluded in more views, single-view 3D recovery blows up
+> while multi-view recovery barely moves.**
+
+![occlusion dose-response: single view blows up, multi view stays low](docs/occlusion_dose_response.png)
+
+A single camera can never recover depth — its pixel fixes only a ray — so with a
+fixed depth prior it sits at **~0.13 world-unit error even before any occlusion**
+and climbs to **~0.24** as its one view is progressively blocked. Three
+calibrated cameras triangulate from whichever views still see the point and stay
+at **~0.003** throughout: **48× → 79× better, and the gap widens with the dose.**
+The object moves through a depth range across 21 frames; the occluder grows on
+camera 1's sightline; error is mean 3D distance to ground truth under 0.5px
+keypoint noise.
+
+**One command** (drives the [multicam-sim](https://github.com/bamdadd/multicam-sim)
+producer, runs the numpy-only pipeline, redraws the figure):
+
+```bash
+make demo          # == bench/run_sweep.py (sweep + numbers) then the plot
+```
+
+| occlusion level | single-view error | multi-view error | multi-view is |
+| --------------: | ----------------: | ---------------: | ------------: |
+|            0.0% |            0.1338 |          0.00276 |     48× better |
+|            4.8% |            0.1446 |          0.00278 |     52× better |
+|            7.9% |            0.1664 |          0.00306 |     54× better |
+|           14.3% |            0.2426 |          0.00307 |     79× better |
+
+*Seeds: sweep + noise seed `20260716` (fully deterministic — pure NumPy, fixed
+geometry, no RNG anywhere else). Hardware: results are hardware-independent by
+construction; the exact figures above were generated on Apple Silicon (arm64),
+macOS 15, Python 3.13 / NumPy 2.5. CI (Python 3.11) does not rerun the sweep — it
+verifies the qualitative result (multi-view beats single-view, single-view climbs
+with occlusion) on the committed fixtures. No GPU, no renderer.*
+
+---
+
 > **How much does a second or third camera actually buy you when an object is
 > occluded in one view?**
 
@@ -46,16 +83,18 @@ Requires [uv](https://docs.astral.sh/uv/). The core is Blender-free and depends
 only on NumPy.
 
 ```bash
-uv sync                                   # install core + dev tools
-uv run pytest -q                          # 5 passing tests, incl. the hero smoke
-uv run python examples/hero_demo.py       # print the hero block above
+uv sync                                   # install core + dev tools (numpy only)
+uv run pytest -q                          # passing tests, incl. the dose-response
+uv run python examples/hero_demo.py       # print the hero block below
 ```
 
-Regenerate the figure (adds matplotlib, an optional docs-only dependency):
+The dose-response numbers run on committed fixtures with **no extra
+dependencies** — `pytest` triangulates the real analytic manifests under
+`tests/fixtures/sweep/`. Regenerating the sweep or the figures is optional:
 
 ```bash
-uv sync --group docs
-uv run python docs/plot_recovery_vs_views.py
+make demo                                 # sweep (needs multicam-sim) + redraw figure
+uv run --group docs python docs/plot_recovery_vs_views.py   # the vs-views figure
 ```
 
 Triangulate a point yourself:
@@ -82,7 +121,15 @@ print(triangulate_dlt(cams, pts, mask=mask))           # ~[0.3, -0.4, 0.8]
 - `triangulate_dlt` — linear Direct Linear Transformation triangulation from any
   subset of visible views; refuses degenerate (<2-view) solves.
 - `drop_k_mask` / `occlude` — deterministic, seed-reproducible occlusion masks.
-- The **hero smoke test** and the **recovery-vs-views figure**, both from real runs.
+- **`ObservationManifest`** — a typed loader for multicam-sim's *analytic
+  observation manifest* (per-frame per-camera `uv` + `visible` + `xyz_gt`),
+  distinct from the pixel `FrameSource` seam. It rebuilds `P = K[R|t]` and
+  self-checks that every stored pixel reprojects to ~1e-6 px.
+- **`recover_trajectory`** — the dose-response pipeline: mask on `visible`,
+  triangulate multi-view, and a monocular depth-prior baseline, with MPJPE-style
+  error vs ground truth.
+- The **occlusion dose-response sweep** above (`make demo`), the **hero smoke
+  test**, and the **recovery-vs-views figure**, all from real runs.
 
 **Planned (roadmap)** — photorealistic scene generation:
 
@@ -90,8 +137,8 @@ print(triangulate_dlt(cams, pts, mask=mask))           # ~[0.3, -0.4, 0.8]
   scenes with controllable occluders and per-view visibility masks, so the
   metric runs on rendered imagery instead of exact projections.
 - Robust / RANSAC triangulation for outlier observations.
-- A full sweep harness (camera counts × occlusion levels × seeds) with an
-  aggregated report and CI artifact.
+- Sweeping camera *count* (not just occlusion level) and >1 occluded camera on
+  larger rings, with an aggregated multi-axis report and a CI artifact.
 
 These are tracked as [good first issues](https://github.com/bamdadd/multicam-occlusion/issues).
 See [DESIGN.md](DESIGN.md) for the full benchmark design and evaluation protocol.
