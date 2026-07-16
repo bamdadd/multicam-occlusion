@@ -19,13 +19,15 @@ multi-view triangulation stays at ≈0.003 throughout — 48× to 79× better, w
 the gap widening as occlusion increases. (2) *Non-overlapping* views separated by
 a blind gap require **identity handoff** (multi-target multi-camera, MTMC): a
 spatio-temporal matcher keeps one global identity across the gap, scoring
-IDF1 = 1.0 with 0 ID-switches versus 0.5 / 2 for a no-handoff baseline. (3)
+IDF1 = 1.0 with 0 ID-switches versus 0.625 / 2 for a no-handoff baseline. (3)
 *Complementary / asymmetric* views, where each camera sees a different facet of
 the event, require **temporal fusion**: correlating an operator-action view with
 an item/assembly-state view yields action↔change associations at
-precision = recall = F1 = 1.00 (TP = 2, FP = 0, FN = 0; mean fused lag 0.1 s),
-which drive an order-verification status. All three modes are deterministic
-(fixed seeds, no GPU, no renderer) and gated in CI. The perfect identity and
+precision = recall = F1 = 1.00 (TP = 3, FP = 0, FN = 0; mean fused lag 0.0 s on
+the producer's placement-synced operator actions), which drive an
+order-verification status (all three ordered parts fulfilled). All three modes
+now run on real `multicam-sim` producer output, are deterministic (fixed seeds,
+no GPU, no renderer), and gated in CI. The perfect identity and
 association scores are a property of a controllable synthetic benchmark with
 exact ground truth and deliberately naive baselines, not a claim of real-world
 state of the art; we name the missing sources of difficulty (detector noise,
@@ -76,12 +78,15 @@ only in that other) is a fusion actor or item. The framing is domain-neutral
 a station), so the modes read across warehouse, manufacturing, and logistics
 settings.
 
-The intended producer of these manifests is the companion synthetic scene
-generator `multicam-sim`. Today only the triangulation mode consumes real
-producer output; the handoff and fusion modes run on **hand-authored** manifests
-written in the exact same schema, pending upstream sim presets that can script
-non-overlapping and asymmetric-visibility rigs (§5). One contract, three modes;
-the producer integration is complete for one mode and staged for the other two.
+The producer of these manifests is the companion synthetic scene generator
+`multicam-sim`, and **all three modes now consume real producer output**: the
+triangulation mode a 3-camera occlusion sweep, the handoff mode a genuinely
+non-overlapping two-station rig (`multicam_sim.dsl.CameraRig.stations`, disjoint
+fields of view), and the fusion mode an asymmetric-visibility assembly-station
+scene whose `order.json` carries placement-synced operator `actions[]`
+(multicam-sim commit `3199ee4`). Each generated scene is committed as a
+numpy-only fixture so CI never imports the sim (§4). One contract, three modes;
+the producer integration is complete for all three.
 
 ---
 
@@ -161,9 +166,13 @@ part*, and only then can the assembled contents be reconciled against the order.
 
 `partition_by_visibility` routes each entity by its asymmetric `visible` labels:
 seen in the operator camera but never the item camera → **actor**; the reverse →
-**item**; seen in both or neither → left out (not complementary). Because the
-manifest carries geometry, not semantics, the partial-observation events are
-*derived* from trajectories by deterministic default detectors, each a Protocol:
+**item**; seen in both or neither → left out (not complementary). On the real
+generated scene the operator actions are read directly from the producer's
+placement-synced `order.json` `actions[]` (`operator_actions_from_order`), so the
+action side needs no detection heuristic; the assembly-state changes are still
+*derived* from the item camera's trajectory. When a scene ships no `actions[]`,
+the same events are recovered from trajectories by deterministic default
+detectors, each a Protocol:
 
 - **`ReachActionDetector`** emits an `ActionEvent` at a strict local minimum of a
   tracked keypoint's height below the trajectory's own midline (the hand dipping
@@ -188,9 +197,10 @@ for) — a thin interpretation that changes neither the estimator nor the metric
 
 ## 3. Results
 
-All figures below are exact and pinned in CI. The triangulation sweep runs on
-real `multicam-sim` producer output; the handoff and fusion results run on
-hand-authored manifests in the same schema (§5).
+All figures below are exact and pinned in CI, and **all three modes run on real
+`multicam-sim` producer output** — the triangulation sweep, a non-overlapping
+two-station rig (handoff), and an asymmetric-visibility assembly-station scene
+(fusion) — each committed as a numpy-only fixture (§4).
 
 **Triangulate — occlusion dose-response (3 cameras, seed `20260716`, 0.5 px
 noise, 21 frames; one camera progressively occluded).** As the occluder grows on
@@ -210,29 +220,34 @@ The multi-view estimate stays recoverable at 100% throughout (it always retains
 one view is blocked. The advantage grows from 48× to 79× because the single-view
 error climbs with the dose while the multi-view error is essentially flat.
 
-**Handoff — MTMC identity across the blind gap** (two-station, two-entity rig,
-staggered crossings, default no-appearance backend):
+**Handoff — MTMC identity across the blind gap** (real `multicam-sim`
+non-overlapping two-station rig via `bench/gen_mtmc_scene.py`, two entities
+crossing staggered in time, default no-appearance backend):
 
 | Assignment | IDF1 | ID-switches |
 | --- | ---: | ---: |
 | Spatio-temporal handoff | **1.0** | **0** |
-| No-handoff baseline (each tracklet its own id) | 0.5 | 2 |
+| No-handoff baseline (each tracklet its own id) | 0.625 | 2 |
 
 Without cross-camera reasoning each object fractures into one identity per camera
-(IDF1 0.5, 2 switches); the handoff recovers a single identity across the gap
-(IDF1 1.0, 0 switches). Two entities are essential — with one, assigning
+(IDF1 0.625, 2 switches); the handoff recovers a single identity across the gap
+(IDF1 1.0, 0 switches). The baseline is 0.625, not a round 0.5, because the real
+generated sweep gives the two entities different-length visible runs — reported
+as measured rather than tuned. Two entities are essential — with one, assigning
 everything a single id trivially scores IDF1 = 1.0 — so the correct pairing
 (a→a, b→b) must beat the cross pairing (a→b, b→a) on time alone, and it does. A
 `StubEmbedding` ReID backend swapped in at appearance-weight 0.5 leaves the
 result unchanged (IDF1 1.0, 0 switches), demonstrating the Protocol seam.
 
-**Fuse — action↔assembly-change association** (assembly-station fixture: two real
-places, a distractor reach that assembles nothing, and a distractor part that
-moves outside the causal window; ground truth is two interactions):
+**Fuse — action / assembly-change association and order verification** (real
+`multicam-sim` assembly-station scene via `bench/gen_fusion_scene.py`: an operator
+places `part_a`, `part_b`, `part_c`, with the placement-synced `actions[]` and the
+order BOM read from the producer's `order.json`; ground truth is three
+interactions):
 
 | Metric | Value |
 | --- | ---: |
-| True positives | 2 |
+| True positives | 3 |
 | False positives | 0 |
 | False negatives | 0 |
 | Precision | 1.00 |
@@ -240,16 +255,25 @@ moves outside the causal window; ground truth is two interactions):
 | F1 | 1.00 |
 | Mean action-time error | 0.0 s |
 | Mean change-time error | 0.0 s |
-| Mean fused lag | 0.1 s |
+| Mean fused lag | 0.0 s |
 
-Precision is 1.00 *because the estimator correctly rejected both traps* — the
-distractor reach (t = 0.9 s) and the out-of-window part move (t = 1.9 s) land in
-`unassociated_actions` / `unassociated_changes`, not in a forced pair. Widening
-the lag window to 1.0 s makes the estimator wrongly link the distractor action to
-the late part: precision falls to 2/3 (recall stays 1.0) and the spurious part
-surfaces as an **extra** line in order verification rather than passing silently —
-the metric registering a real mistake. On the default window the order
-`[part_a, part_b]` verifies **ok** (both fulfilled).
+Each operator action links to the part it placed; nothing is refused. The mean
+fused lag is 0.0 s because the producer's `actions[]` are placement-synced — the
+action and the assembly change it causes are stamped at the same instant — so the
+metric measures association, not a timing artefact. Reading the fused scene back
+against the order, all three lines verify **fulfilled**. The reconciliation
+reports shortfalls honestly on the same real data: a too-strict item detector
+(seeing no placements) marks every line **missing**; an assembled item the order
+never listed is **wrong**; a surplus of an expected item is **extra**.
+
+The estimator's *refusal* behaviour — pairing nothing where a reach assembles
+nothing, or a change falls outside the lag window — is what this clean generated
+scene deliberately does not contain, so it is exercised separately as a controlled
+estimator stress test (`tests/test_fusion.py`): there a too-wide 1.0 s lag window
+wrongly links a distractor action, precision falls to 2/3 (recall stays 1.0), and
+the spurious pairing surfaces as an **extra** order line rather than passing
+silently — the metric registering a real mistake, which is what makes the perfect
+score on the real scene meaningful.
 
 ---
 
@@ -263,15 +287,23 @@ triangulation hero smoke test pins seed `20260715` with a `1e-6` tolerance. The
 handoff and fusion pipelines are seed-free (no RNG at all), so their fixtures are
 exact.
 
-One-command repros (via `make`):
+One `make` target regenerates each mode's fixture from real `multicam-sim`
+output; all are optional (they need the `bench` group) and CI runs only the
+committed JSON:
 
 ```bash
-make demo    # drive multicam-sim, run the numpy-only sweep, redraw the figure
-make sweep   # regenerate the analytic manifests + curve JSON + test fixtures
-make plot    # redraw docs/occlusion_dose_response.png from the committed JSON
-make test    # the fast numpy-only gate: pytest over committed fixtures
-make check   # full local gate: ruff check + ruff format --check + mypy src + pytest
+make demo         # drive multicam-sim, run the numpy-only sweep, redraw the figure
+make sweep        # triangulate: regen analytic manifests + curve JSON + test fixtures
+make mtmc-scene   # handoff: regen the non-overlap two-station fixture (mtmc_stations.json)
+make fusion-scene # fusion: regen the assembly-station manifest + order.json fixtures
+make plot         # redraw docs/occlusion_dose_response.png from the committed JSON
+make test         # the fast numpy-only gate: pytest over committed fixtures
+make check        # full local gate: ruff check + ruff format --check + mypy src + pytest
 ```
+
+The triangulation sweep and its pixel noise use seed `20260716`; the handoff and
+fusion generators are seed-free (deterministic, no RNG), so their committed
+fixtures are exact.
 
 `make test` / `make check` need no `multicam-sim` and no matplotlib — CI runs
 exactly this numpy-only gate over the committed fixtures under
@@ -290,21 +322,13 @@ CI (`ruff` lint + format, `mypy --strict` on `src`, `pytest`) gates every change
 These are prominent by design; the perfect identity and association scores must
 be read against them.
 
-- **Synthetic ground truth.** Every result comes from exact analytic geometry
-  with known ground truth, not from rendered or captured imagery. There is no
-  detector — 2D observations are exact projections (triangulation) or exact
-  trajectories from which events are derived (handoff, fusion). Perfect scores
-  are a property of a controllable benchmark with exact ground truth, **not** a
-  claim of real-world state of the art.
-- **Only one mode consumes real producer output.** The triangulation sweep runs
-  on real `multicam-sim` manifests, but the handoff and fusion fixtures are
-  *hand-authored* in the same schema. `multicam-sim`'s ring/line rigs share a
-  look-at target, so every camera sees the scene centre — it cannot yet emit a
-  non-overlapping rig (handoff) or an asymmetric-visibility rig (fusion). The
-  fixtures set `visible` directly to encode those structures and stand in until
-  upstream sim presets land (bamdadd/multicam-sim#13 for a non-overlap preset; a
-  requested asymmetric-visibility assembly-station preset). When those land, the
-  fixtures become real producer output with no consumer change.
+- **Synthetic ground truth.** Every result comes from real `multicam-sim`
+  producer output — exact analytic geometry and producer-declared events, not
+  rendered or captured imagery. There is no perception detector: 2D observations
+  are exact projections (triangulation) and the fusion operator actions are the
+  producer's placement-synced `actions[]`, not detections. Perfect scores are a
+  property of a controllable benchmark with exact ground truth, **not** a claim
+  of real-world state of the art.
 - **Naive baselines.** The single-view baseline is a fixed monocular depth prior;
   the MTMC no-handoff baseline gives each tracklet its own id; the fusion
   estimator is a greedy temporal-proximity matcher. These are honest lower
@@ -316,8 +340,14 @@ be read against them.
   extension point:
   - *Detector / rendering noise*: photorealistic Kubric/Blender scenes with
     controllable occluders and detected (not projected) observations
-    (multicam-occlusion #2), and a robust/RANSAC triangulation variant for
-    contaminated observations (#1).
+    (multicam-occlusion #2), a robust/RANSAC triangulation variant for
+    contaminated observations (#1), and fusion under noisy / incomplete
+    observations — missed and false detections, timing jitter, dropped frames
+    (#24).
+  - *Harder regimes off the saturated scores*: harder MTMC scenes (longer blind
+    gaps, simultaneous crossers, ID ambiguity) to unsaturate the IDF1 = 1.0 (#22),
+    and an end-to-end 2D-pose → triangulated 3D-pose path with MPJPE under
+    occlusion (#23).
   - *Calibration / geometric edge cases*: near-degenerate baseline tests (#9)
     and a richer transit model with graph validation for handoff (#11).
   - *Appearance ambiguity*: a learned ReID `AppearanceBackend` for handoff (#12)
@@ -325,8 +355,8 @@ be read against them.
     both behind Protocols that already exist.
   - *Metric and scale*: HOTA alongside IDF1 and an optimal Hungarian global
     assignment for handoff (#13); a PR-curve sweep over the fusion lag window and
-    multi-operator scoring (#17); and driving fusion from a real asymmetric
-    multicam-sim scene (#18).
+    multi-operator scoring (#17); and a runnable assembly-station example driving
+    fusion from the real asymmetric scene (#18).
 
 ---
 
