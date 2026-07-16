@@ -150,21 +150,35 @@ See [DESIGN.md](DESIGN.md) for the full benchmark design and evaluation protocol
 
 Multiple cameras relate to one event in three geometric regimes; the divider is
 **view overlap**. Each is a separate, typed, open-closed mode over the same
-`multicam-sim` analytic manifest — complementary, not competing.
+`multicam-sim` analytic manifest — complementary, not competing. **All three now
+run on real `multicam-sim` producer output**, each committed as a numpy-only
+fixture so CI never imports the sim.
 
 - **Triangulate** (overlapping views, *the hero above*) — recover a 3D point from
-  the views that still see it under occlusion. `triangulation.py` / `recovery.py`.
+  the views that still see it under occlusion. Real 3-camera occlusion sweep:
+  single-view **~0.13 → ~0.24**, multi-view flat at **~0.003** (48× → 79×).
+  `triangulation.py` / `recovery.py`.
 - **Handoff / MTMC** (non-overlapping views, a blind gap) — keep one identity as
-  an entity crosses between stations. Metric IDF1 / ID-switches. `mtmc/`,
-  [docs/mtmc-design.md](docs/mtmc-design.md).
+  an entity crosses between stations. Real non-overlap two-station rig
+  (`make mtmc-scene`): handoff **IDF1 1.0 / 0 ID-switches** vs a no-handoff
+  baseline **0.625 / 2**. `mtmc/`, [docs/mtmc-design.md](docs/mtmc-design.md).
 - **Fusion** (complementary/asymmetric views) — one camera sees the operator's
   action, another the item/assembly state; fuse them into a joint "who did what
-  to which item" and an order-verification status. `fusion/`,
-  [docs/fusion-design.md](docs/fusion-design.md).
+  to which item" and an order-verification status. Real assembly-station scene
+  (`make fusion-scene`) with producer-synced operator `actions[]`: association
+  **precision = recall = F1 = 1.0** (3 places, lag 0.0 s), all ordered parts
+  **fulfilled**. `fusion/`, [docs/fusion-design.md](docs/fusion-design.md).
 
 Framing is domain-neutral (assembly / order fulfilment) so it reads across
-warehouse, manufacturing, and logistics. The full three-mode writeup — methods,
-results table, and limitations — is in [docs/note.md](docs/note.md).
+warehouse, manufacturing, and logistics. Perfect identity and association scores
+are a property of a controllable benchmark with exact ground truth, not a claim
+of real-world SOTA; the harder-regime knobs (detector noise, longer gaps,
+appearance ambiguity) are tracked as open issues
+([#22](https://github.com/bamdadd/multicam-occlusion/issues/22),
+[#23](https://github.com/bamdadd/multicam-occlusion/issues/23),
+[#24](https://github.com/bamdadd/multicam-occlusion/issues/24)). The full
+three-mode writeup — methods, results table, and limitations — is in
+[docs/note.md](docs/note.md).
 
 ## Method & references
 
