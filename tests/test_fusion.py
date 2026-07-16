@@ -1,12 +1,13 @@
-"""Complementary-fusion mode: action <-> assembly-change association (controlled).
+"""Distractor stress test of the causal estimator (controlled in-memory scene).
 
-This exercises the *causal* half of the fusion mode — linking each operator
-action to the assembly change it caused — on a CONTROLLED, in-memory scene
-(``tests/controlled_assembly_scene.py``), NOT on real multicam-sim output. The
-current sim assembly-station preset frames an operator but does not emit reaches
-timestamped to placements, so the causal metric cannot yet run on generated data
-(tracked upstream; see ``docs/fusion-design.md``). The *order-verification* half
-DOES run on real generated sim output — see ``tests/test_fusion_sim.py``.
+Both fusion metrics now run end-to-end on **real** multicam-sim output — see
+``tests/test_fusion_sim.py`` (order verification *and* causal action↔change
+association on the generated ``actions[]``). That generated scene is clean: three
+actions, three changes, all matched. This module is retained to exercise what the
+clean scene deliberately does not contain — the estimator's *refusal* behaviour —
+on a CONTROLLED, hand-authored in-memory scene
+(``tests/controlled_assembly_scene.py``), not on sim output. It tests estimator
+logic, not sim integration.
 
 The controlled scene is an asymmetric two-camera rig: camera 0 sees the operator,
 camera 1 sees the parts. The operator places twice and reaches a third time (a
@@ -16,6 +17,10 @@ These tests assert the pipeline recovers exactly those two, refuses both
 distractors, that the association metric measures the outcome (including a false
 positive under a too-wide lag window), and that order verification reads the
 fused scene back against the order.
+
+Here the operator actions are *detected* from the trajectory (``ReachActionDetector``
+via ``fuse_scene``); the real-data path instead consumes the producer's
+placement-synced ``actions[]`` directly.
 """
 
 from __future__ import annotations

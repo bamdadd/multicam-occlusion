@@ -1,41 +1,30 @@
-"""Order verification driven by the *item camera* of a real scene manifest.
+"""Read a generated ``order.json`` and run both fusion metrics on real sim output.
 
-This is the half of the fusion mode that runs end-to-end on **generated
-multicam-sim output** today. Where :func:`verification.verify_order` reads a
-*fused* joint scene state (operator actions linked in time to item changes), this
-path reconstructs the **assembled contents** directly from the item-camera view
-of a scene manifest — no operator action stream required — and reconciles them
-against the order's bill of materials.
+This is where the fusion mode meets **generated multicam-sim output** end-to-end,
+for BOTH of its metrics:
 
-The reconstruction is genuinely camera-derived, in two steps that mirror the rest
-of the mode:
+* **Order verification** — reconstruct the assembled contents from the item
+  camera of the scene manifest and reconcile them, quantity-aware, against the
+  order's expected counts: ``fulfilled`` / ``missing`` / ``wrong`` / ``extra``.
+* **Causal action↔change association** — consume the operator ``actions[]`` the
+  producer now emits in ``order.json`` (one placement-synced ``place`` event per
+  item, carrying the operator's hand-joint world position), pair each against the
+  item's assembly change detected from the manifest, and score the association.
 
-1. :func:`partition_by_visibility` routes each entity by its per-camera
-   ``visible`` labels; the items are exactly the entities seen in the item camera
-   but not the operator camera.
-2. an :class:`ItemStateDetector` (default :class:`DisplacementStateDetector`)
-   reads each item entity's trajectory and counts its **placements** — a part
-   moving into the container is one unit assembled.
-
-The result is compared, quantity-aware, against the order (read from the
-generated ``order.json``) into a per-item status: ``fulfilled`` / ``missing`` /
-``wrong`` / ``extra``.
-
-The *causal* action↔change association metric is a separate concern: it needs an
-operator whose reaches are timestamped to placements, which the current
-multicam-sim assembly-station preset does not emit — so that metric stays on a
-controlled in-memory scene (see ``docs/fusion-design.md`` and the linked
-multicam-sim issue). Routing + item detection + order reconciliation, though,
-run on real generated data here.
+The ``order.json`` schema is multicam-sim's ``OrderResult`` sidecar
+(``{status, expected, placed, missing, extra, wrong, order_id, actions}``); the
+byte-golden manifest never carries the actions. This reader mirrors it as
+read-only pydantic (no loose dicts), ignoring unknown fields so it keeps working
+as the producer's schema grows. :func:`SceneOrder.expected_counts` gives the BOM
+counts; :attr:`SceneOrder.actions` gives the synced operator actions.
 """
 
 from __future__ import annotations
 
 import json
-from collections import Counter
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
 from .detectors import (
     CameraRoles,
@@ -43,57 +32,62 @@ from .detectors import (
     ItemStateDetector,
     partition_by_visibility,
 )
+from .estimator import FusionEstimator, TemporalProximityEstimator
+from .observations import (
+    ActionEvent,
+    AssemblyChangeEvent,
+    GroundTruthInteraction,
+    ItemViewObservation,
+    JointSceneState,
+    OperatorViewObservation,
+)
 from .scene_manifest import SceneManifest
 from .verification import OrderStatus
 
-
-class OrderLine(BaseModel):
-    """One expected item and how many the order needs (a BOM line)."""
-
-    model_config = ConfigDict(frozen=True, extra="ignore")
-
-    name: str
-    count: int
-
-    @field_validator("count")
-    @classmethod
-    def _positive(cls, value: int) -> int:
-        if value < 1:
-            raise ValueError("OrderLine count must be >= 1")
-        return value
+Vec3 = tuple[float, float, float]
 
 
-class OrderBom(BaseModel):
-    """The order's bill of materials: the item lines it expects."""
+class SceneActionEvent(BaseModel):
+    """One operator action from a generated ``order.json`` ``actions[]`` entry.
 
-    model_config = ConfigDict(frozen=True, extra="ignore")
-
-    items: list[OrderLine]
-
-
-class SceneOrder(BaseModel):
-    """A generated ``order.json``: an order id plus its bill of materials.
-
-    Mirrors the multicam-sim ``order.json`` schema (``{order_id, bom: {items:
-    [{name, count}]}}``) as read-only pydantic; unknown fields are ignored so the
-    reader keeps working as the producer's schema grows.
+    Mirrors multicam-sim's ``ActionEvent``: a ``place`` action synced to an item's
+    placement ``frame``, carrying the operator's ``hand_joint`` world position at
+    that frame. This is the placement-synced operator signal the causal-fusion
+    metric correlates against each item's assembly change.
     """
 
     model_config = ConfigDict(frozen=True, extra="ignore")
 
-    order_id: str
-    bom: OrderBom
+    frame: int
+    action: str = "place"
+    item_id: str
+    entity_id: str
+    hand_joint: str = "right_wrist"
+    hand_position: Vec3
+
+
+class SceneOrder(BaseModel):
+    """A generated ``order.json`` (multicam-sim ``OrderResult`` sidecar).
+
+    Read-only pydantic over ``{expected, order_id, actions, ...}``; unknown fields
+    (``status`` / ``placed`` / ``missing`` / ``extra`` / ``wrong``) are ignored.
+    ``expected`` is the bill of materials as ``{item: count}``; ``actions`` are the
+    placement-synced operator events for causal fusion.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    expected: dict[str, int]
+    order_id: str | None = None
+    actions: list[SceneActionEvent] = []
 
     def expected_counts(self) -> dict[str, int]:
-        """Expected quantity per item id (aggregated over BOM lines)."""
-        counts: Counter[str] = Counter()
-        for line in self.bom.items:
-            counts[line.name] += line.count
-        return dict(counts)
+        """Expected quantity per item id (the order's BOM)."""
+        return dict(self.expected)
 
     @classmethod
     def from_json(cls, path: str | Path) -> SceneOrder:
-        """Load and validate a generated order from a JSON file."""
+        """Load and validate a generated order sidecar from a JSON file."""
         return cls.model_validate(json.loads(Path(path).read_text()))
 
 
@@ -200,3 +194,83 @@ def verify_order_from_manifest(
     """
     assembled = reconstruct_assembled(manifest, roles, state_detector=state_detector)
     return verify_assembly(assembled, order)
+
+
+# --- causal action<->change association on real generated data ------------- #
+
+
+def operator_actions_from_order(order: SceneOrder, manifest: SceneManifest) -> list[ActionEvent]:
+    """Convert the generated ``actions[]`` into fusion :class:`ActionEvent`s.
+
+    Each producer :class:`SceneActionEvent` becomes an operator ``ActionEvent``
+    timestamped in seconds (``frame / fps`` via the manifest) and carrying the
+    operator's hand-joint world position as its ``location``. This is the operator
+    action stream — sourced from ``order.json``, not detected from geometry — that
+    the estimator correlates with the item camera's assembly changes.
+    """
+    return [
+        ActionEvent(
+            actor_id=a.entity_id,
+            label=a.action,
+            frame=a.frame,
+            time=manifest.time_of(a.frame),
+            location=a.hand_position,
+        )
+        for a in order.actions
+    ]
+
+
+def ground_truth_from_order(
+    order: SceneOrder, manifest: SceneManifest
+) -> list[GroundTruthInteraction]:
+    """The known (action, change) pairs, by construction of the generated scene.
+
+    Each emitted action is synced to its item's placement frame, so the ground
+    truth pairs that action's item and time with the assembly change at the same
+    frame. This is the producer's declared truth the association metric scores
+    the estimator against.
+    """
+    return [
+        GroundTruthInteraction(
+            actor_id=a.entity_id,
+            item_id=a.item_id,
+            action_time=manifest.time_of(a.frame),
+            change_time=manifest.time_of(a.frame),
+        )
+        for a in order.actions
+    ]
+
+
+def fuse_order_actions(
+    manifest: SceneManifest,
+    order: SceneOrder,
+    roles: CameraRoles,
+    *,
+    state_detector: ItemStateDetector | None = None,
+    estimator: FusionEstimator | None = None,
+) -> JointSceneState:
+    """Causal fusion on real generated data: order ``actions[]`` × manifest changes.
+
+    Routes entities by asymmetric visibility, takes the operator action stream
+    from the generated ``order.json`` (not from a geometry detector), detects each
+    item's assembly change from the manifest, and correlates the two with the
+    (pluggable) estimator. Unlike :func:`estimator.fuse_scene` — which *derives*
+    actions from the operator trajectory — this consumes the producer's
+    placement-synced action ground truth directly.
+    """
+    detector = state_detector or DisplacementStateDetector()
+    est = estimator or TemporalProximityEstimator()
+    partition = partition_by_visibility(manifest, roles)
+
+    actions = operator_actions_from_order(order, manifest)
+    actor_id = actions[0].actor_id if actions else (partition.actors[0] if partition.actors else "")
+    operator = OperatorViewObservation(
+        camera_id=roles.operator_camera, actor_id=actor_id, actions=actions
+    )
+
+    changes: list[AssemblyChangeEvent] = []
+    for item_id in partition.items:
+        changes.extend(detector.detect(manifest, item_id))
+    item_view = ItemViewObservation(camera_id=roles.item_camera, changes=changes)
+
+    return est.fuse(operator, item_view)
