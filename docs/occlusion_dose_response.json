@@ -1,0 +1,75 @@
+{
+  "config": {
+    "seed": 20260716,
+    "n_cams": 3,
+    "num_frames": 21,
+    "pixel_noise": 0.5,
+    "occluded_cam": 1,
+    "single_cam": 1
+  },
+  "points": [
+    {
+      "dose_radius": 0.0,
+      "occlusion_rate": 0.0,
+      "multi_mpjpe": 0.002755305132034936,
+      "single_mpjpe": 0.13383712741048437,
+      "multi_recoverable_rate": 1.0,
+      "single_observed_rate": 1.0,
+      "min_visible": 3
+    },
+    {
+      "dose_radius": 0.08,
+      "occlusion_rate": 0.015873015873015872,
+      "multi_mpjpe": 0.0027718600274057197,
+      "single_mpjpe": 0.13355394366671375,
+      "multi_recoverable_rate": 1.0,
+      "single_observed_rate": 0.9523809523809523,
+      "min_visible": 2
+    },
+    {
+      "dose_radius": 0.14,
+      "occlusion_rate": 0.047619047619047616,
+      "multi_mpjpe": 0.0027833409175660744,
+      "single_mpjpe": 0.1445812236449904,
+      "multi_recoverable_rate": 1.0,
+      "single_observed_rate": 0.8571428571428571,
+      "min_visible": 2
+    },
+    {
+      "dose_radius": 0.2,
+      "occlusion_rate": 0.047619047619047616,
+      "multi_mpjpe": 0.0027833409175660744,
+      "single_mpjpe": 0.1445812236449904,
+      "multi_recoverable_rate": 1.0,
+      "single_observed_rate": 0.8571428571428571,
+      "min_visible": 2
+    },
+    {
+      "dose_radius": 0.28,
+      "occlusion_rate": 0.07936507936507936,
+      "multi_mpjpe": 0.0030632038908874745,
+      "single_mpjpe": 0.1663562874470005,
+      "multi_recoverable_rate": 1.0,
+      "single_observed_rate": 0.7619047619047619,
+      "min_visible": 2
+    },
+    {
+      "dose_radius": 0.38,
+      "occlusion_rate": 0.1111111111111111,
+      "multi_mpjpe": 0.0030201446872382006,
+      "single_mpjpe": 0.19899447041759916,
+      "multi_recoverable_rate": 1.0,
+      "single_observed_rate": 0.6666666666666666,
+      "min_visible": 2
+    },
+    {
+      "dose_radius": 0.5,
+      "occlusion_rate": 0.14285714285714285,
+      "multi_mpjpe": 0.003066065394076051,
+      "single_mpjpe": 0.24264613485393716,
+      "multi_recoverable_rate": 1.0,
+      "single_observed_rate": 0.5714285714285714,
+      "min_visible": 2
+    }
+  ]
+}

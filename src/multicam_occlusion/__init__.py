@@ -5,7 +5,21 @@ when it is occluded in some views; a single view is fundamentally insufficient
 (the observation constrains the point only to a ray).
 """
 
+from multicam_occlusion.observation import (
+    ObsCamera,
+    ObsEntity,
+    ObservationManifest,
+    ObsFrame,
+    PerCam,
+    PointObs,
+)
 from multicam_occlusion.occlusion import drop_k_mask, occlude
+from multicam_occlusion.recovery import (
+    FrameRecovery,
+    TrajectoryRecovery,
+    back_project,
+    recover_trajectory,
+)
 from multicam_occlusion.sources import (
     CameraCalibration,
     CameraStream,
@@ -28,13 +42,23 @@ __all__ = [
     "FileFrameSource",
     "Frame",
     "FrameBundle",
+    "FrameRecovery",
     "FrameRef",
     "FrameSource",
     "Manifest",
+    "ObsCamera",
+    "ObsEntity",
+    "ObsFrame",
+    "ObservationManifest",
+    "PerCam",
+    "PointObs",
+    "TrajectoryRecovery",
+    "back_project",
     "build_ring_cameras",
     "drop_k_mask",
     "occlude",
     "project_points",
+    "recover_trajectory",
     "triangulate_dlt",
 ]
 

@@ -29,6 +29,13 @@ dev = [
 ]
 # Optional: only needed to regenerate the docs figure. Not synced in CI.
 docs = ["matplotlib>=3.8"]
+# Optional: only needed to *generate* the occlusion sweep (drives multicam-sim's
+# analytic manifest producer). The committed fixture + core pipeline stay
+# numpy-only, so CI never installs this. Regenerate the sweep with `make sweep`.
+bench = [
+    "matplotlib>=3.8",
+    "multicam-sim @ git+https://github.com/bamdadd/multicam-sim@main",
+]
 
 [tool.ruff]
 line-length = 100
