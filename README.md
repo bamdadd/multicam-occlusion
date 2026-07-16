@@ -3,6 +3,9 @@
 [![CI](https://github.com/bamdadd/multicam-occlusion/actions/workflows/ci.yml/badge.svg)](https://github.com/bamdadd/multicam-occlusion/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
+📄 **Writeup:** [docs/note.md](docs/note.md) — the three camera-relationship modes
+(triangulate / handoff / fusion), methods, and full results in one place.
+
 > **As an object is occluded in more views, single-view 3D recovery blows up
 > while multi-view recovery barely moves.**
 
@@ -160,7 +163,8 @@ Multiple cameras relate to one event in three geometric regimes; the divider is
   [docs/fusion-design.md](docs/fusion-design.md).
 
 Framing is domain-neutral (assembly / order fulfilment) so it reads across
-warehouse, manufacturing, and logistics.
+warehouse, manufacturing, and logistics. The full three-mode writeup — methods,
+results table, and limitations — is in [docs/note.md](docs/note.md).
 
 ## Method & references
 
