@@ -1,175 +1,116 @@
 """MTMC handoff proof: keep one identity across a blind gap on a non-overlap rig.
 
-The fixture is a **hand-authored** manifest in the multicam-sim schema (its ring
-rig always shares a look-at target, so it can't yet emit a non-overlapping rig —
-tracked upstream). Two station cameras — station 1 (``cam0``) and station 2
-(``cam1``) — with **no field-of-view overlap**: each entity is ``visible`` in one camera at
-a time and invisible during the gap. Two entities cross the gap **staggered** in
-time, so spatio-temporal plausibility alone (default no-appearance backend) must
-disambiguate — a single-entity fixture would be satisfied by assigning
-everything one id and prove nothing.
+The fixture is **real multicam-sim output** — ``tests/fixtures/mtmc_stations.json``,
+produced by ``bench/gen_mtmc_scene.py`` from a genuinely non-overlapping two-station
+rig (``multicam_sim.dsl.CameraRig.stations``, disjoint fields of view) and committed so
+CI stays numpy-only (multicam-sim is an optional ``bench`` dep, never imported here).
+See ``make mtmc-scene`` to regenerate.
 
-Headline: with the handoff, IDF1 = 1.0 and 0 ID-switches; the no-handoff
-baseline scores strictly worse (IDF1 = 0.5, 2 switches). That contrast is the
-proof.
+Two station cameras — station 1 (``cam0``) and station 2 (``cam1``) — with **no
+field-of-view overlap**: each entity is ``visible`` in one camera at a time and
+invisible during the blind gap. Two entities cross the gap **staggered** in time, so
+spatio-temporal plausibility alone (default no-appearance backend) must disambiguate —
+a single-entity fixture would be satisfied by assigning everything one id and prove
+nothing.
+
+Headline (measured on the generated scene): with the handoff, IDF1 = 1.0 and 0
+ID-switches; the no-handoff baseline scores strictly worse (IDF1 = 0.625, 2 switches).
+That contrast is the proof. (The baseline is 0.625, not the hand fixture's old 0.5,
+because the real sweep gives the two entities different-length visible runs — reported
+honestly rather than tuned to a round number.)
 """
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
 
 from multicam_occlusion.mtmc import (
-    CameraTopology,
     SpatioTemporalMatcher,
     StubEmbedding,
-    TransitDistribution,
-    TransitionEdge,
     assign_global_ids,
     compute_identity_metrics,
     extract_tracklets,
     idf1_from_counts,
-    load_manifest,
+    matcher_topology_from_manifest,
     per_tracklet_global_ids,
+    read_manifest,
 )
 
-FPS = 10.0
-WIDTH = 640.0
-HEIGHT = 480.0
+FIXTURE = Path(__file__).parent / "fixtures" / "mtmc_stations.json"
+
+# Local, camera-scoped tracklet ids the extractor assigns (one visible run each).
+A0, A1 = "c0:eitem_a:r0", "c1:eitem_a:r0"
+B0, B1 = "c0:eitem_b:r0", "c1:eitem_b:r0"
 
 
-def _cam(cam_id: int) -> dict[str, Any]:
-    return {
-        "id": cam_id,
-        "K": [[800.0, 0.0, 320.0], [0.0, 800.0, 240.0], [0.0, 0.0, 1.0]],
-        "R": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        "t": [0.0, 0.0, 5.0],
-        "width": int(WIDTH),
-        "height": int(HEIGHT),
-        "convention": "opencv_rdf",
-    }
-
-
-def _obs(cam: int, u: float, v: float) -> dict[str, Any]:
-    return {"cam": cam, "uv": [u, v], "visible": True, "occ_frac": 0.0}
-
-
-def _hidden(cam: int) -> dict[str, Any]:
-    return {"cam": cam, "uv": [0.0, 0.0], "visible": False, "occ_frac": 1.0}
-
-
-def _frame(
-    frame: int, per_cam: list[dict[str, Any]], xyz: tuple[float, float, float]
-) -> dict[str, Any]:
-    return {
-        "frame": frame,
-        "points": {"center": {"xyz_gt": list(xyz), "per_cam": per_cam}},
-    }
-
-
-def _entity_frames(
-    visible_windows: dict[int, list[tuple[int, float]]],
-    all_frames: range,
-) -> list[dict[str, Any]]:
-    """Frames for one entity. ``visible_windows`` maps camera -> [(frame, u)].
-
-    Row ``v`` is fixed per entity elsewhere; here every visible obs sits at row
-    240 (mid-height) so the nearest border is always left/right, never top/bottom.
-    """
-    seen: dict[int, dict[int, float]] = {}
-    for cam, points in visible_windows.items():
-        for frame, u in points:
-            seen.setdefault(frame, {})[cam] = u
-    frames: list[dict[str, Any]] = []
-    for f in all_frames:
-        per_cam: list[dict[str, Any]] = []
-        for cam in (0, 1):
-            if f in seen and cam in seen[f]:
-                per_cam.append(_obs(cam, seen[f][cam], 240.0))
-            else:
-                per_cam.append(_hidden(cam))
-        frames.append(_frame(f, per_cam, (float(f), 0.0, 0.0)))
-    return frames
-
-
-def build_fixture_manifest() -> dict[str, Any]:
-    """A non-overlapping two-camera, two-entity blind-gap rig.
-
-    ``item_a`` exits cam0 (frames 0-2, moving to the right border) and re-enters
-    cam1 (frames 7-9, from the left border); ``item_b`` is offset later — exits
-    cam0 at frames 2-4 and re-enters cam1 at frames 9-11. Both gaps are ~0.5 s of
-    transit, but the staggered exit/entry order is what makes the correct pairing
-    (a→a, b→b) strictly more plausible than the cross pairing.
-    """
-    all_frames = range(0, 12)
-    entity_a = _entity_frames(
-        {0: [(0, 100.0), (1, 300.0), (2, 560.0)], 1: [(7, 60.0), (8, 300.0), (9, 500.0)]},
-        all_frames,
-    )
-    entity_b = _entity_frames(
-        {0: [(2, 120.0), (3, 320.0), (4, 555.0)], 1: [(9, 65.0), (10, 300.0), (11, 505.0)]},
-        all_frames,
-    )
-    return {
-        "cameras": [_cam(0), _cam(1)],
-        "fps": FPS,
-        "num_frames": 12,
-        "entities": [
-            {"id": "item_a", "frames": entity_a},
-            {"id": "item_b", "frames": entity_b},
-        ],
-    }
-
-
-def station_topology() -> CameraTopology:
-    """station 1 (cam0) right-exit → station 2 (cam1) left-entry, ~0.5 s transit."""
-    return CameraTopology(
-        cameras=[0, 1],
-        edges=[
-            TransitionEdge(
-                src_camera=0,
-                dst_camera=1,
-                exit_zone="cam0:right",
-                entry_zone="cam1:left",
-                transit=TransitDistribution(mean=0.5, std=0.15),
-            )
-        ],
-    )
+def test_fixture_is_real_sim_output() -> None:
+    """The committed fixture carries fields only multicam-sim's build_manifest emits."""
+    manifest = read_manifest(FIXTURE)
+    # A topology block, per-camera in_view, and a convention tag are sim-produced —
+    # the old hand-authored fixture had none of them.
+    assert manifest.topology is not None
+    assert {s.id for s in manifest.topology.stations} == {"station-1", "station-2"}
+    first_obs = manifest.entities[0].frames[0].points["center"].per_cam[0]
+    assert first_obs.in_view is not None
+    assert manifest.cameras[0].convention == "opencv_rdf"
 
 
 def test_extractor_yields_non_overlapping_tracklets() -> None:
     """Each entity yields exactly one tracklet per camera; zones are right→left."""
-    manifest = build_fixture_manifest()
+    manifest = read_manifest(FIXTURE)
     tracklets, gt = extract_tracklets(manifest)
 
     assert len(tracklets) == 4  # 2 entities x 2 cameras, no re-entry within a camera
     by_id = {t.id: t for t in tracklets}
 
-    a0 = by_id["c0:eitem_a:r0"]
-    a1 = by_id["c1:eitem_a:r0"]
+    a0, a1 = by_id[A0], by_id[A1]
     assert a0.camera_id == 0 and a1.camera_id == 1
     assert a0.exit_zone == "cam0:right"  # left station 1 on the right
     assert a1.entry_zone == "cam1:left"  # entered station 2 on the left
     # Non-overlap: cam0 run ends before the cam1 run begins (a real blind gap).
     assert a0.exit_time < a1.entry_time
-    assert gt["c0:eitem_a:r0"] == "item_a" and gt["c1:eitem_a:r0"] == "item_a"
+    assert gt[A0] == "item_a" and gt[A1] == "item_a"
+
+    # Both entities exit station 1 on the right and enter station 2 on the left, so a
+    # single topology edge carries both handoffs (checked below).
+    assert by_id[B0].exit_zone == "cam0:right"
+    assert by_id[B1].entry_zone == "cam1:left"
+
+
+def test_topology_derives_from_manifest() -> None:
+    """The matcher graph is built from the manifest's own stations + transit times.
+
+    Guards the silent-veto trap: if the derived edge's zones didn't match the
+    extractor's, every score would be ``None`` and IDF1 would collapse to the
+    baseline while *looking* like the handoff simply didn't help.
+    """
+    manifest = read_manifest(FIXTURE)
+    tracklets, _ = extract_tracklets(manifest)
+    topology = matcher_topology_from_manifest(manifest, tracklets)
+
+    assert topology.cameras == [0, 1]
+    # The forward handoff edge exists with exactly the zones the extractor produced.
+    forward = topology.edge_for(0, "cam0:right", 1, "cam1:left")
+    assert forward is not None
+    assert forward.transit.mean == 0.5  # the manifest's transit_time_s
+    # No spurious *forward* edge from a zone no cam0 tracklet actually exited through.
+    assert topology.edge_for(0, "cam0:left", 1, "cam1:left") is None
 
 
 def test_handoff_keeps_identity_across_blind_gap() -> None:
     """The headline: handoff → IDF1 1.0 / 0 switches; baseline is strictly worse."""
-    manifest = build_fixture_manifest()
+    manifest = read_manifest(FIXTURE)
     tracklets, gt = extract_tracklets(manifest)
-    topology = station_topology()
+    topology = matcher_topology_from_manifest(manifest, tracklets)
 
     predicted = assign_global_ids(tracklets, topology, SpatioTemporalMatcher())
     metrics = compute_identity_metrics(tracklets, predicted, gt)
 
     # Each entity's two per-camera tracklets are stitched into one global id.
-    assert predicted["c0:eitem_a:r0"] == predicted["c1:eitem_a:r0"]
-    assert predicted["c0:eitem_b:r0"] == predicted["c1:eitem_b:r0"]
+    assert predicted[A0] == predicted[A1]
+    assert predicted[B0] == predicted[B1]
     # ...and the two entities stay distinct (no wrong cross-camera match).
-    assert predicted["c0:eitem_a:r0"] != predicted["c0:eitem_b:r0"]
+    assert predicted[A0] != predicted[B0]
 
     assert metrics.idf1 == 1.0
     assert metrics.id_switches == 0
@@ -177,21 +118,21 @@ def test_handoff_keeps_identity_across_blind_gap() -> None:
     # No-handoff baseline: every tracklet its own id -> each entity fractures.
     baseline = per_tracklet_global_ids(tracklets)
     base_metrics = compute_identity_metrics(tracklets, baseline, gt)
-    assert base_metrics.idf1 == 0.5
+    assert base_metrics.idf1 == 0.625
     assert base_metrics.id_switches == 2
     assert metrics.idf1 > base_metrics.idf1
 
 
 def test_wrong_cross_match_is_less_plausible_than_correct() -> None:
     """The correct pairing outscores the cross pairing — matcher isn't fooled."""
-    manifest = build_fixture_manifest()
+    manifest = read_manifest(FIXTURE)
     tracklets, _ = extract_tracklets(manifest)
     by_id = {t.id: t for t in tracklets}
-    topology = station_topology()
+    topology = matcher_topology_from_manifest(manifest, tracklets)
     matcher = SpatioTemporalMatcher()
 
-    a0, a1 = by_id["c0:eitem_a:r0"], by_id["c1:eitem_a:r0"]
-    b0, b1 = by_id["c0:eitem_b:r0"], by_id["c1:eitem_b:r0"]
+    a0, a1 = by_id[A0], by_id[A1]
+    b0, b1 = by_id[B0], by_id[B1]
 
     correct = matcher.score(a0, a1, topology)
     cross = matcher.score(a0, b1, topology)
@@ -199,15 +140,15 @@ def test_wrong_cross_match_is_less_plausible_than_correct() -> None:
     assert correct > cross
     assert matcher.score(b0, b1, topology) == correct  # symmetric stagger
 
-    # Reverse direction has no topology edge -> hard veto.
+    # Reverse direction is vetoed: the gap time would be negative (effect before cause).
     assert matcher.score(a1, a0, topology) is None
 
 
 def test_appearance_backend_is_pluggable() -> None:
     """A ReID backend swaps in without changing topology/assignment/metrics."""
-    manifest = build_fixture_manifest()
+    manifest = read_manifest(FIXTURE)
     tracklets, gt = extract_tracklets(manifest)
-    topology = station_topology()
+    topology = matcher_topology_from_manifest(manifest, tracklets)
 
     matcher = SpatioTemporalMatcher(StubEmbedding(), appearance_weight=0.5)
     predicted = assign_global_ids(tracklets, topology, matcher)
@@ -253,15 +194,3 @@ def test_idf1_handles_false_positive_and_negative_detections() -> None:
     ]
     idtp, idfp, idfn = idf1_from_counts(counts)
     assert (idtp, idfp, idfn) == (5, 2, 3)
-
-
-def test_fixture_round_trips_through_json(tmp_path: Path) -> None:
-    """The hand-authored manifest is valid JSON and loads via the extractor."""
-    manifest = build_fixture_manifest()
-    path = tmp_path / "stations.json"
-    path.write_text(json.dumps(manifest, indent=2))
-
-    loaded = load_manifest(path)
-    tracklets, gt = extract_tracklets(loaded)
-    assert len(tracklets) == 4
-    assert set(gt.values()) == {"item_a", "item_b"}

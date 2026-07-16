@@ -30,7 +30,6 @@ from multicam_occlusion.mtmc.assignment import (
 from multicam_occlusion.mtmc.extract import (
     classify_zone,
     extract_tracklets,
-    load_manifest,
 )
 from multicam_occlusion.mtmc.matcher import (
     AppearanceBackend,
@@ -43,6 +42,11 @@ from multicam_occlusion.mtmc.metrics import (
     IdentityMetrics,
     compute_identity_metrics,
     idf1_from_counts,
+)
+from multicam_occlusion.mtmc.reader import (
+    SimManifest,
+    matcher_topology_from_manifest,
+    read_manifest,
 )
 from multicam_occlusion.mtmc.topology import (
     CameraTopology,
@@ -58,6 +62,7 @@ __all__ = [
     "IdentityMetrics",
     "NoAppearance",
     "Observation",
+    "SimManifest",
     "SpatioTemporalMatcher",
     "StubEmbedding",
     "Tracklet",
@@ -69,6 +74,7 @@ __all__ = [
     "compute_identity_metrics",
     "extract_tracklets",
     "idf1_from_counts",
-    "load_manifest",
+    "matcher_topology_from_manifest",
     "per_tracklet_global_ids",
+    "read_manifest",
 ]
