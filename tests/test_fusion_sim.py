@@ -1,18 +1,26 @@
-"""Order verification on REAL multicam-sim output (the generated fixture).
+"""Both fusion metrics on REAL multicam-sim output (the generated fixture).
 
 ``tests/fixtures/sim_assembly_station/{manifest.json,order.json}`` is genuine
 multicam-sim producer output — regenerate with ``make fusion-scene`` (drives
 multicam-sim; deterministic, no seed). The scene is the shipped
 ``examples/assembly_station.py`` preset: an overview camera frames the operator,
-a worktop camera frames three parts, and the two cameras' per-entity ``visible``
-labels are complementary.
+a worktop camera frames three parts, complementary per-entity ``visible`` labels,
+and — since multicam-sim commit 3199ee4 — ``order.json`` carries placement-synced
+operator ``actions[]``.
 
-These tests drive the order-verification path end-to-end on that generated data:
-route by asymmetric visibility, reconstruct assembled contents from the item
-camera, and reconcile against the generated order's BOM. The *causal* action↔
-change association metric is exercised separately, on a controlled in-memory
-scene, in ``tests/test_fusion.py`` — the sim preset does not yet emit operator
-action events timestamped to placements (tracked upstream).
+Both halves of the mode now run end-to-end on this generated data:
+
+* **order verification** — route by asymmetric visibility, reconstruct assembled
+  contents from the item camera, reconcile against the order's BOM;
+* **causal action↔change association** — consume the operator ``actions[]`` from
+  ``order.json``, pair each against the item's assembly change detected from the
+  manifest, and score precision/recall/timing against the producer's declared
+  ground truth.
+
+The controlled in-memory scene in ``tests/test_fusion.py`` is retained only as a
+distractor stress test of the estimator logic (refusing a reach that assembles
+nothing, a change outside the lag window) — behaviours this clean generated scene
+does not contain.
 """
 
 from __future__ import annotations
@@ -24,11 +32,13 @@ import pytest
 from multicam_occlusion.fusion import (
     CameraRoles,
     DisplacementStateDetector,
-    OrderBom,
-    OrderLine,
     OrderStatus,
     SceneManifest,
     SceneOrder,
+    association_metric,
+    fuse_order_actions,
+    ground_truth_from_order,
+    operator_actions_from_order,
     partition_by_visibility,
     reconstruct_assembled,
     verify_assembly,
@@ -38,8 +48,7 @@ from multicam_occlusion.fusion import (
 
 def _order(**counts: int) -> SceneOrder:
     """A SceneOrder from ``name=count`` kwargs (for direct verify_assembly tests)."""
-    lines = [OrderLine(name=n, count=c) for n, c in counts.items()]
-    return SceneOrder(order_id="ORD-T", bom=OrderBom(items=lines))
+    return SceneOrder(order_id="ORD-T", expected=dict(counts))
 
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "sim_assembly_station"
@@ -127,3 +136,58 @@ def test_verify_assembly_flags_surplus_of_expected_item_as_extra() -> None:
     assert line.status is OrderStatus.EXTRA
     assert line.expected == 1 and line.assembled == 2
     assert verified.by_status(OrderStatus.EXTRA) == [line]
+
+
+# --- causal action<->change association on the generated actions[] ---------- #
+
+
+def test_order_reader_reads_synced_operator_actions(order: SceneOrder) -> None:
+    """The reader recovers the placement-synced operator actions from order.json."""
+    assert [(a.item_id, a.frame, a.action) for a in order.actions] == [
+        ("part_a", 2, "place"),
+        ("part_b", 5, "place"),
+        ("part_c", 8, "place"),
+    ]
+    assert all(a.entity_id == "operator" and a.hand_joint == "right_wrist" for a in order.actions)
+
+
+def test_operator_actions_carry_hand_position_and_time(
+    manifest: SceneManifest, order: SceneOrder
+) -> None:
+    """Each converted ActionEvent is timestamped in seconds and keeps the hand xyz."""
+    actions = operator_actions_from_order(order, manifest)
+    # fps is 30 in the generated scene: t = frame / 30.
+    assert [round(a.time, 4) for a in actions] == [round(f / 30.0, 4) for f in (2, 5, 8)]
+    assert all(a.actor_id == "operator" and a.label == "place" for a in actions)
+    assert all(a.location is not None for a in actions)
+
+
+def test_causal_fusion_associates_every_action_on_generated_data(
+    manifest: SceneManifest, order: SceneOrder
+) -> None:
+    """Each operator action is linked to the part it placed; nothing is refused."""
+    state = fuse_order_actions(manifest, order, ROLES)
+
+    assert len(state.interactions) == 3
+    linked = {(i.actor_id, i.item_id) for i in state.interactions}
+    assert linked == {("operator", "part_a"), ("operator", "part_b"), ("operator", "part_c")}
+    assert all(i.action_label == "place" for i in state.interactions)
+    assert all(i.lag == pytest.approx(0.0) for i in state.interactions)
+    assert state.unassociated_actions == []
+    assert state.unassociated_changes == []
+
+
+def test_association_metric_is_perfect_on_generated_scene(
+    manifest: SceneManifest, order: SceneOrder
+) -> None:
+    """Precision/recall/f1 = 1.0 with zero timing error, scored on real data."""
+    state = fuse_order_actions(manifest, order, ROLES)
+    metrics = association_metric(state.interactions, ground_truth_from_order(order, manifest))
+
+    assert (metrics.true_positives, metrics.false_positives, metrics.false_negatives) == (3, 0, 0)
+    assert metrics.precision == 1.0
+    assert metrics.recall == 1.0
+    assert metrics.f1 == 1.0
+    assert metrics.mean_action_time_error == pytest.approx(0.0, abs=1e-9)
+    assert metrics.mean_change_time_error == pytest.approx(0.0, abs=1e-9)
+    assert metrics.mean_lag == pytest.approx(0.0, abs=1e-9)

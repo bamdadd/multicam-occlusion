@@ -9,8 +9,10 @@ camera and three parts framed by a worktop camera, with complementary per-camera
 
 * ``tests/fixtures/sim_assembly_station/manifest.json`` — the full scene manifest
   (multicam-sim's ``build_manifest``: projection + in_view/visible/occ_frac);
-* ``tests/fixtures/sim_assembly_station/order.json``    — the order (a bill of
-  materials: one each of ``part_a`` / ``part_b`` / ``part_c``).
+* ``tests/fixtures/sim_assembly_station/order.json``    — the order GT sidecar:
+  status + per-item counts (one each of ``part_a`` / ``part_b`` / ``part_c``) and
+  the placement-synced operator ``actions[]`` (one ``place`` ActionEvent per item,
+  timestamped to its placement frame) that the causal-fusion metric consumes.
 
 The scene is DETERMINISTIC — it has no RNG and takes no seed, so the committed
 fixture is exact and regenerating it is a no-op diff. It lives OUTSIDE ``src/``
@@ -35,7 +37,15 @@ from pathlib import Path
 from multicam_sim import write_manifest
 from multicam_sim.dsl.rig import CameraRig, StationView
 from multicam_sim.entities import Entity, EntityFrame
-from multicam_sim.order import BillOfMaterials, Order, write_order_json
+from multicam_sim.order import (
+    ActionEvent,
+    BillOfMaterials,
+    ItemPlacement,
+    Order,
+    OrderResult,
+    verify_order,
+    write_order_json,
+)
 from multicam_sim.pose import PoseFrame, PoseTrajectory, Skeleton
 from multicam_sim.scene import Scene
 
@@ -111,17 +121,48 @@ def build_scene() -> Scene:
     return Scene(fps=FPS, num_frames=NUM_FRAMES, cameras=cameras, entities=entities)
 
 
-def build_order() -> Order:
+def build_order() -> tuple[Order, list[ItemPlacement]]:
     bom = BillOfMaterials.from_counts({item: 1 for item in _ITEM_STAGING})
-    return Order(order_id="ORD-1", bom=bom)
+    order = Order(order_id="ORD-1", bom=bom)
+    placements = [
+        ItemPlacement(item=item, placed_at_frame=frame, entity_id=item)
+        for item, frame in _PLACED_AT.items()
+    ]
+    return order, placements
+
+
+def build_actions(placements: list[ItemPlacement]) -> list[ActionEvent]:
+    """One 'place' ActionEvent per placement, synced to its frame, carrying the
+    operator's right-wrist world position at that frame (causal-fusion GT)."""
+    joints_by_frame = {f.frame: f.joints for f in operator_pose().frames}
+    hand = "right_wrist"
+    events: list[ActionEvent] = []
+    for p in placements:
+        wrist = joints_by_frame[p.placed_at_frame][hand]
+        events.append(
+            ActionEvent(
+                frame=p.placed_at_frame,
+                item_id=p.item,
+                entity_id="operator",
+                hand_joint=hand,
+                hand_position=(float(wrist[0]), float(wrist[1]), float(wrist[2])),
+            )
+        )
+    return events
 
 
 def main() -> None:
     out_dir = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "sim_assembly_station"
     out_dir.mkdir(parents=True, exist_ok=True)
     write_manifest(build_scene(), out_dir / "manifest.json")
-    write_order_json(build_order(), out_dir / "order.json")
-    print(f"wrote manifest.json + order.json to {out_dir}")
+    order, placements = build_order()
+    # order.json = the order GT sidecar: status + per-item deltas + the synced
+    # placement ActionEvents (the manifest stays byte-golden — actions never touch it).
+    result: OrderResult = verify_order(
+        order.bom, placements, order_id=order.order_id, actions=build_actions(placements)
+    )
+    write_order_json(result, out_dir / "order.json")
+    print(f"wrote manifest.json + order.json (with actions[]) to {out_dir}")
 
 
 if __name__ == "__main__":

@@ -132,22 +132,30 @@ interaction exists with the same `(actor_id, item_id)` and an action time within
 - **timing error** = mean absolute error of action time and change time versus
   ground truth over matched pairs, plus the mean fused lag.
 
-### Why the score is honest (the distractor design)
+On the real generated scene the metric consumes the operator `actions[]` from
+`order.json` and pairs each with the item change detected from the manifest,
+scoring **1.0/1.0 with zero timing error** (`tests/test_fusion_sim.py`).
 
-A clean two-action / two-change scene scores 1.0/1.0 trivially — that proves the
-plumbing runs, not that the metric measures anything. The controlled
-assembly-station scene therefore plants two traps:
+### Why that score is honest (the distractor stress test)
 
-- a **distractor action** (a third reach that assembles no part), and
-- a **distractor change** (a fourth part that moves *outside* the lag window,
-  with no action to explain it).
+A clean three-action / three-change scene scores 1.0 trivially — that proves the
+plumbing runs, not that the metric measures anything. The generated scene *is*
+clean (every reach assembles a part, every part is placed in-window), so a
+separate **controlled** stress scene (`tests/controlled_assembly_scene.py`) plants
+two traps the generated one lacks:
+
+- a **distractor action** (a reach that assembles no part), and
+- a **distractor change** (a part that moves *outside* the lag window, with no
+  action to explain it).
 
 A faithful estimator must **refuse both**. Precision stays 1.0 *because it
 correctly rejected the traps*, not because there was nothing to get wrong — the
 distractors sit in `unassociated_actions` / `unassociated_changes`. And when the
 lag window is widened to 1.0 s, the estimator wrongly links the distractor
 action to the late part and precision falls to 2/3 — the metric registering a
-real mistake. Both behaviours are asserted in `tests/test_fusion.py`.
+real mistake. Both behaviours are asserted in `tests/test_fusion.py`. (Here the
+actions are *detected* from the trajectory; the real-data path instead consumes
+the producer's synced `actions[]`.)
 
 ## Order verification (the operational output)
 
@@ -184,35 +192,35 @@ the difference is intentional:
   surfaces as an `extra` line (there is no unmet line for it to substitute).
   Unit-tested directly in `tests/test_verification.py`.
 
-## What runs on real generated data, and what is still controlled
+## Both metrics run on real generated data
 
-The two halves of the mode consume different data, and the split is deliberate
-and disclosed:
+The fusion mode now runs end-to-end on genuine multicam-sim output for **both**
+of its metrics. `tests/fixtures/sim_assembly_station/{manifest.json,order.json}`
+is producer output from multicam-sim's shipped `examples/assembly_station.py`
+preset (overview camera framing the operator, worktop camera framing the parts,
+complementary per-camera `visible` labels). Regenerate with `make fusion-scene`
+(drives multicam-sim via the optional `bench` group; **deterministic, no seed**).
 
-- **Order verification runs on REAL generated multicam-sim output.**
-  `tests/fixtures/sim_assembly_station/{manifest.json,order.json}` is genuine
-  producer output from multicam-sim's shipped `examples/assembly_station.py`
-  preset (an overview camera framing the operator, a worktop camera framing the
-  parts, with complementary per-camera `visible` labels). Regenerate it with
-  `make fusion-scene` (drives multicam-sim via the optional `bench` group;
-  **deterministic, no seed**). `verify_order_from_manifest` routes by asymmetric
+- **Order verification.** `verify_order_from_manifest` routes by asymmetric
   visibility, reconstructs the assembled contents from the *item camera*, and
-  reconciles them against the generated order's BOM. On this scene the order
+  reconciles them against the generated order's BOM. The order
   `part_a + part_b + part_c` verifies **fulfilled** (each part placed once).
-  See `tests/test_fusion_sim.py`.
 
-- **The causal action↔change association metric runs on a CONTROLLED in-memory
-  scene** (`tests/controlled_assembly_scene.py`, clearly labelled as
-  hand-authored, not sim-generated). The shipped sim preset frames an operator
-  but does **not** emit reaches timestamped to placements — its operator makes a
-  single continuous wrist motion, not a dip synced to each part — so there is no
-  per-placement action stream to correlate. Until multicam-sim emits those
-  action events (requested upstream: **bamdadd/multicam-sim#34**, placement-synced
-  operator action events), the distractor/lag-window metric is exercised on the
-  controlled scene, which tests the estimator logic rather than the sim
-  integration.
+- **Causal action↔change association.** Since multicam-sim commit `3199ee4`
+  (resolving the previously-filed **bamdadd/multicam-sim#34**), the producer emits
+  placement-synced operator `actions[]` into `order.json` — one `place` event per
+  item, timestamped to its placement frame with the operator's hand-joint world
+  position. `fuse_order_actions` consumes those actions directly (no geometry
+  detector), pairs each against the item's assembly change detected from the
+  manifest, and `association_metric` scores it against the producer's declared
+  ground truth (`ground_truth_from_order`): **precision/recall/F1 = 1.0, zero
+  timing error**. See `tests/test_fusion_sim.py`.
 
-Both halves are deterministic — no RNG, no wall-clock — so the numbers are exact
+The only thing NOT on generated data is the estimator's *distractor-refusal*
+stress test — the clean generated scene has no distractors by construction — so
+that stays a controlled unit test (next section, `tests/test_fusion.py`).
+
+Both metrics are deterministic — no RNG, no wall-clock — so the numbers are exact
 and pinned in CI (`ruff` + `mypy --strict` + `pytest`), and CI never installs
 multicam-sim (the committed fixture keeps the gate numpy-only).
 
@@ -224,5 +232,9 @@ multicam-sim (the committed fixture keeps the gate numpy-only).
   view; object-state detection for the item view) behind the existing Protocols.
 - A soft/probabilistic estimator (associate with calibrated confidence rather
   than a hard greedy one-to-one) and a PR-curve sweep over the lag window.
-- Quantity-aware orders (a BOM line requiring N of a part), extending order
-  verification beyond a presence check.
+- Quantity-aware orders on the *fused* path too (the generated-data path
+  `verify_assembly` already reconciles N-of-a-part counts; the fused
+  `verify_order` remains a presence check).
+- A generated scene that itself contains discrepancies (a distractor reach, a
+  missing/foreign part) so the refusal and non-`fulfilled` statuses are exercised
+  on real producer output, not only on the controlled stress scene.

@@ -1,19 +1,55 @@
 {
+  "status": "fulfilled",
+  "expected": {
+    "part_a": 1,
+    "part_b": 1,
+    "part_c": 1
+  },
+  "placed": {
+    "part_a": 1,
+    "part_b": 1,
+    "part_c": 1
+  },
+  "missing": {},
+  "extra": {},
+  "wrong": {},
   "order_id": "ORD-1",
-  "bom": {
-    "items": [
-      {
-        "name": "part_a",
-        "count": 1
-      },
-      {
-        "name": "part_b",
-        "count": 1
-      },
-      {
-        "name": "part_c",
-        "count": 1
-      }
-    ]
-  }
+  "actions": [
+    {
+      "frame": 2,
+      "action": "place",
+      "item_id": "part_a",
+      "entity_id": "operator",
+      "hand_joint": "right_wrist",
+      "hand_position": [
+        -0.22,
+        0.3370633909777092,
+        1.0
+      ]
+    },
+    {
+      "frame": 5,
+      "action": "place",
+      "item_id": "part_b",
+      "entity_id": "operator",
+      "hand_joint": "right_wrist",
+      "hand_position": [
+        -0.22,
+        0.28,
+        1.0
+      ]
+    },
+    {
+      "frame": 8,
+      "action": "place",
+      "item_id": "part_c",
+      "entity_id": "operator",
+      "hand_joint": "right_wrist",
+      "hand_position": [
+        -0.22,
+        0.22293660902229082,
+        1.0
+      ]
+    }
+  ]
 }
