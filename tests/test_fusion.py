@@ -1,22 +1,28 @@
-"""Complementary-fusion mode: action <-> assembly-change association on a fixture.
+"""Complementary-fusion mode: action <-> assembly-change association (controlled).
 
-The assembly-station fixture (``tests/fixtures/assembly_station.json``, a
-multicam-sim scene manifest) has an asymmetric two-camera rig: camera 0 sees the
-operator, camera 1 sees the parts. The operator places twice and reaches a third
-time (a distractor); a third part moves outside the causal window (a change with
-no cause). Ground truth is two interactions — the order is ``part_a`` + ``part_b``.
+This exercises the *causal* half of the fusion mode — linking each operator
+action to the assembly change it caused — on a CONTROLLED, in-memory scene
+(``tests/controlled_assembly_scene.py``), NOT on real multicam-sim output. The
+current sim assembly-station preset frames an operator but does not emit reaches
+timestamped to placements, so the causal metric cannot yet run on generated data
+(tracked upstream; see ``docs/fusion-design.md``). The *order-verification* half
+DOES run on real generated sim output — see ``tests/test_fusion_sim.py``.
+
+The controlled scene is an asymmetric two-camera rig: camera 0 sees the operator,
+camera 1 sees the parts. The operator places twice and reaches a third time (a
+distractor); a third part moves outside the causal window (a change with no
+cause). Ground truth is two interactions — the order is ``part_a`` + ``part_b``.
 These tests assert the pipeline recovers exactly those two, refuses both
-distractors, that the association metric measures the outcome (including a
-false positive under a too-wide lag window), and that order verification reads
-the fused scene back against the order.
+distractors, that the association metric measures the outcome (including a false
+positive under a too-wide lag window), and that order verification reads the
+fused scene back against the order.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
+from controlled_assembly_scene import build as build_controlled_scene
 from multicam_occlusion.fusion import (
     ActionDetector,
     CameraRoles,
@@ -32,11 +38,10 @@ from multicam_occlusion.fusion import (
     verify_order,
 )
 
-FIXTURE = Path(__file__).parent / "fixtures" / "assembly_station.json"
 ROLES = CameraRoles(operator_camera=0, item_camera=1)
 ORDER = ["part_a", "part_b"]
 
-# Known by construction of the fixture (see build_assembly_station.py).
+# Known by construction of the controlled scene (see controlled_assembly_scene.py).
 GROUND_TRUTH = [
     GroundTruthInteraction(actor_id="operator", item_id="part_a", action_time=0.5, change_time=0.6),
     GroundTruthInteraction(actor_id="operator", item_id="part_b", action_time=1.3, change_time=1.4),
@@ -45,7 +50,7 @@ GROUND_TRUTH = [
 
 @pytest.fixture
 def manifest() -> SceneManifest:
-    return SceneManifest.from_json(FIXTURE)
+    return SceneManifest.model_validate(build_controlled_scene())
 
 
 def test_asymmetric_visibility_routes_operator_and_parts(manifest: SceneManifest) -> None:

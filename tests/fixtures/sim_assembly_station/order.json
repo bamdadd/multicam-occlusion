@@ -1,0 +1,19 @@
+{
+  "order_id": "ORD-1",
+  "bom": {
+    "items": [
+      {
+        "name": "part_a",
+        "count": 1
+      },
+      {
+        "name": "part_b",
+        "count": 1
+      },
+      {
+        "name": "part_c",
+        "count": 1
+      }
+    ]
+  }
+}

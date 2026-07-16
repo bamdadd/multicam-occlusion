@@ -39,6 +39,16 @@ from multicam_occlusion.fusion.estimator import (
     TemporalProximityEstimator,
     fuse_scene,
 )
+from multicam_occlusion.fusion.manifest_order import (
+    AssemblyLine,
+    AssemblyVerification,
+    OrderBom,
+    OrderLine,
+    SceneOrder,
+    reconstruct_assembled,
+    verify_assembly,
+    verify_order_from_manifest,
+)
 from multicam_occlusion.fusion.metrics import AssociationMetrics, association_metric
 from multicam_occlusion.fusion.observations import (
     ActionEvent,
@@ -67,6 +77,8 @@ __all__ = [
     "ActionDetector",
     "ActionEvent",
     "AssemblyChangeEvent",
+    "AssemblyLine",
+    "AssemblyVerification",
     "AssociationMetrics",
     "CamObservation",
     "CameraRoles",
@@ -81,15 +93,21 @@ __all__ = [
     "ManifestEntity",
     "ManifestFrame",
     "OperatorViewObservation",
+    "OrderBom",
+    "OrderLine",
     "OrderStatus",
     "OrderVerification",
     "PointObservation",
     "ReachActionDetector",
     "SceneManifest",
+    "SceneOrder",
     "ScenePartition",
     "TemporalProximityEstimator",
     "association_metric",
     "fuse_scene",
     "partition_by_visibility",
+    "reconstruct_assembled",
+    "verify_assembly",
     "verify_order",
+    "verify_order_from_manifest",
 ]

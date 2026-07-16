@@ -135,8 +135,8 @@ interaction exists with the same `(actor_id, item_id)` and an action time within
 ### Why the score is honest (the distractor design)
 
 A clean two-action / two-change scene scores 1.0/1.0 trivially — that proves the
-plumbing runs, not that the metric measures anything. The assembly-station
-fixture therefore plants two traps:
+plumbing runs, not that the metric measures anything. The controlled
+assembly-station scene therefore plants two traps:
 
 - a **distractor action** (a third reach that assembles no part), and
 - a **distractor change** (a fourth part that moves *outside* the lag window,
@@ -151,37 +151,70 @@ real mistake. Both behaviours are asserted in `tests/test_fusion.py`.
 
 ## Order verification (the operational output)
 
-`verify_order` reads the joint scene state against the order (the expected item
-ids / BOM) and assigns each line a status — nothing here changes the estimator,
-the association, or the metric; it is a thin interpretation over
-`JointSceneState`:
+Order verification comes in two forms, one per data source:
 
-- **fulfilled** — an expected item was assembled (a fused interaction links it);
-- **missing** — an expected item was never assembled, with no stand-in;
-- **wrong** — an expected item was not assembled, but an *unexpected* item was
-  assembled in its place (a mis-pick / substitution);
-- **extra** — an item was assembled that the order never called for.
+1. **On real generated data (`verify_order_from_manifest`).** This is the path
+   that runs on multicam-sim output. It does not need an operator action stream:
+   it routes entities by asymmetric visibility, reconstructs the assembled
+   contents directly from the *item camera* (an `ItemStateDetector` counting each
+   part's placement into the container), and reconciles those counts against the
+   order's BOM, quantity-aware. On the generated assembly-station scene, all three
+   ordered parts are placed, so the order verifies **fulfilled**.
 
-On the fixture the order `[part_a, part_b]` verifies **ok** (both fulfilled); the
-spurious `part_c` under a too-wide window surfaces as an `extra` line rather than
-passing silently. The four statuses are unit-tested directly in
-`tests/test_verification.py`.
+2. **On the fused joint scene state (`verify_order`).** This reads a
+   `JointSceneState` (operator actions linked to item changes) against the order —
+   a thin interpretation used on the controlled causal scene, where an interaction
+   *is* the evidence a line was assembled.
 
-## Fixture and reproducibility
+Both assign four statuses, but the two paths differ on `wrong` vs `extra`, and
+the difference is intentional:
 
-`tests/fixtures/assembly_station.json` is a small scene in the **multicam-sim
-scene schema** (`{fps, num_frames, cameras, entities}`), regenerable with
-`python tests/fixtures/build_assembly_station.py`. It is a two-camera asymmetric
-rig (camera 0 = operator, camera 1 = parts). Every point carries a `per_cam`
-entry for **both** cameras — `visible` in one, `false` in the other — exactly as
-`build_manifest` emits, so the visibility router is genuinely exercised rather
-than reading a trivially-partitioned input.
+- The **generated-data path** (`verify_order_from_manifest` / `verify_assembly`)
+  is **quantity-aware**, matching multicam-sim's own `order.py` vocabulary:
+  *fulfilled* = assembled count equals the ordered count; *missing* = short;
+  *extra* = **surplus of an expected item** (more assembled than ordered); *wrong*
+  = a **foreign item** assembled that the order never listed. Verified on real
+  generated data in `tests/test_fusion_sim.py`.
+- The **fused path** (`verify_order`) is **presence/substitution-based**:
+  *fulfilled* = an interaction assembled the item; *missing* = no interaction and
+  no stand-in; *wrong* = an expected line unmet **with an unexpected item standing
+  in for it** (a mis-pick); *extra* = an unexpected item assembled with no missing
+  line to explain it. So on the controlled causal scene the order `[part_a,
+  part_b]` verifies **ok**, and the spurious `part_c` under a too-wide window
+  surfaces as an `extra` line (there is no unmet line for it to substitute).
+  Unit-tested directly in `tests/test_verification.py`.
 
-The fixture stands in until multicam-sim can script asymmetric visibility
-directly; requested upstream as an **asymmetric-visibility assembly-station
-preset** (bamdadd/multicam-sim). The whole pipeline is deterministic — no RNG,
-no wall-clock — so the association metric on the fixture is exact and pinned in
-CI (`ruff` + `mypy --strict` + `pytest`).
+## What runs on real generated data, and what is still controlled
+
+The two halves of the mode consume different data, and the split is deliberate
+and disclosed:
+
+- **Order verification runs on REAL generated multicam-sim output.**
+  `tests/fixtures/sim_assembly_station/{manifest.json,order.json}` is genuine
+  producer output from multicam-sim's shipped `examples/assembly_station.py`
+  preset (an overview camera framing the operator, a worktop camera framing the
+  parts, with complementary per-camera `visible` labels). Regenerate it with
+  `make fusion-scene` (drives multicam-sim via the optional `bench` group;
+  **deterministic, no seed**). `verify_order_from_manifest` routes by asymmetric
+  visibility, reconstructs the assembled contents from the *item camera*, and
+  reconciles them against the generated order's BOM. On this scene the order
+  `part_a + part_b + part_c` verifies **fulfilled** (each part placed once).
+  See `tests/test_fusion_sim.py`.
+
+- **The causal action↔change association metric runs on a CONTROLLED in-memory
+  scene** (`tests/controlled_assembly_scene.py`, clearly labelled as
+  hand-authored, not sim-generated). The shipped sim preset frames an operator
+  but does **not** emit reaches timestamped to placements — its operator makes a
+  single continuous wrist motion, not a dip synced to each part — so there is no
+  per-placement action stream to correlate. Until multicam-sim emits those
+  action events (requested upstream: **bamdadd/multicam-sim#34**, placement-synced
+  operator action events), the distractor/lag-window metric is exercised on the
+  controlled scene, which tests the estimator logic rather than the sim
+  integration.
+
+Both halves are deterministic — no RNG, no wall-clock — so the numbers are exact
+and pinned in CI (`ruff` + `mypy --strict` + `pytest`), and CI never installs
+multicam-sim (the committed fixture keeps the gate numpy-only).
 
 ## Roadmap
 

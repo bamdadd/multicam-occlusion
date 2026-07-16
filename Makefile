@@ -1,4 +1,4 @@
-.PHONY: demo sweep plot mtmc-scene test check
+.PHONY: demo sweep plot mtmc-scene fusion-scene test check
 
 # One-command hero: generate the occlusion sweep (drives multicam-sim), run the
 # numpy-only recovery pipeline, print single-vs-multi numbers, and redraw the
@@ -20,6 +20,13 @@ mtmc-scene:
 # Redraw the figure from the committed curve JSON (no multicam-sim needed).
 plot:
 	uv run --group docs python docs/plot_occlusion_dose_response.py
+
+# Regenerate the fusion order-verification fixture from real multicam-sim output
+# (the asymmetric-visibility assembly-station scene). Deterministic, no seed;
+# writes tests/fixtures/sim_assembly_station/{manifest,order}.json. Optional
+# bench dependency, same as the sweep — CI never installs multicam-sim.
+fusion-scene:
+	uv run --group bench python bench/gen_fusion_scene.py
 
 # The fast, numpy-only gate: recovery pipeline over committed fixtures. No
 # multicam-sim, no matplotlib — exactly what CI runs.
