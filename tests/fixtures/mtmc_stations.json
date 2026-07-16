@@ -1,0 +1,952 @@
+{
+  "cameras": [
+    {
+      "id": 0,
+      "K": [
+        [
+          554.2562584220409,
+          0.0,
+          320.0
+        ],
+        [
+          0.0,
+          554.2562584220409,
+          240.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "R": [
+        [
+          1.0,
+          -0.0,
+          0.0
+        ],
+        [
+          0.0,
+          -0.09950371902099892,
+          -0.9950371902099892
+        ],
+        [
+          0.0,
+          0.9950371902099892,
+          -0.09950371902099892
+        ]
+      ],
+      "t": [
+        6.0,
+        0.9950371902099893,
+        5.1244415295814445
+      ],
+      "width": 640,
+      "height": 480,
+      "convention": "opencv_rdf"
+    },
+    {
+      "id": 1,
+      "K": [
+        [
+          554.2562584220409,
+          0.0,
+          320.0
+        ],
+        [
+          0.0,
+          554.2562584220409,
+          240.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "R": [
+        [
+          1.0,
+          -0.0,
+          0.0
+        ],
+        [
+          0.0,
+          -0.09950371902099892,
+          -0.9950371902099892
+        ],
+        [
+          0.0,
+          0.9950371902099892,
+          -0.09950371902099892
+        ]
+      ],
+      "t": [
+        -6.0,
+        0.9950371902099893,
+        5.1244415295814445
+      ],
+      "width": 640,
+      "height": 480,
+      "convention": "opencv_rdf"
+    }
+  ],
+  "fps": 10.0,
+  "num_frames": 12,
+  "entities": [
+    {
+      "id": "item_a",
+      "frames": [
+        {
+          "frame": 0,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -6.0,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    319.99999999999994,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -1003.6134160877658,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 1,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -4.7,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    463.3914534095079,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -860.2219626782579,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 2,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -3.4,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    606.7829068190159,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -716.8305092687499,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 3,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -2.1,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    750.1743602285237,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -573.439055859242,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 4,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -0.7999999999999998,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    893.5658136380318,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -430.04760244973403,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 5,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                0.5,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1036.9572670475397,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -286.65614904022607,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 6,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                1.7999999999999998,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1180.3487204570476,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -143.26469563071805,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 7,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                3.099999999999998,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1323.7401738665553,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    0.1267577787896519,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 8,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                4.4,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1467.131627276064,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    143.51821118829793,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 9,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                5.699999999999999,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1610.5230806855716,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    286.90966459780583,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 10,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                7.0,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1753.9145340950795,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    430.30111800731385,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 11,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                8.3,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1897.3059875045876,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    573.6925714168218,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "item_b",
+      "frames": [
+        {
+          "frame": 0,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -8.6,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    33.217093180984016,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -1290.396322906782,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 1,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -7.3,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    176.60854659049198,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -1147.0048694972738,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 2,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -6.0,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    319.99999999999994,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -1003.6134160877658,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 3,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -4.699999999999999,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    463.391453409508,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -860.2219626782577,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 4,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -3.3999999999999995,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    606.7829068190159,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -716.8305092687499,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 5,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -2.0999999999999996,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    750.1743602285238,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -573.439055859242,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 6,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                -0.7999999999999998,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    893.5658136380318,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -430.04760244973403,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 7,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                0.4999999999999982,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1036.9572670475397,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -286.65614904022624,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 8,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                1.8000000000000007,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1180.3487204570479,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    -143.26469563071797,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 9,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                3.0999999999999996,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1323.7401738665558,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    0.12675777878987812,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 10,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                4.4,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1467.131627276064,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    143.51821118829793,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        },
+        {
+          "frame": 11,
+          "points": {
+            "center": {
+              "xyz_gt": [
+                5.700000000000001,
+                0.0,
+                1.0
+              ],
+              "per_cam": [
+                {
+                  "cam": 0,
+                  "uv": [
+                    1610.5230806855718,
+                    240.0
+                  ],
+                  "in_view": false,
+                  "visible": false,
+                  "occ_frac": 0.0
+                },
+                {
+                  "cam": 1,
+                  "uv": [
+                    286.909664597806,
+                    240.0
+                  ],
+                  "in_view": true,
+                  "visible": true,
+                  "occ_frac": 0.0
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "topology": {
+    "stations": [
+      {
+        "id": "station-1",
+        "camera_ids": [
+          0
+        ]
+      },
+      {
+        "id": "station-2",
+        "camera_ids": [
+          1
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "src": "station-1",
+        "dst": "station-2",
+        "transit_time_s": 0.5
+      },
+      {
+        "src": "station-2",
+        "dst": "station-1",
+        "transit_time_s": 0.5
+      }
+    ]
+  }
+}

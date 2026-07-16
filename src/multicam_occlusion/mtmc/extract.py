@@ -1,11 +1,11 @@
-"""Extract per-camera tracklets from a multicam-sim manifest.
+"""Extract per-camera tracklets from a validated multicam-sim manifest.
 
-Reads the manifest schema ``multicam-sim`` emits (``build_manifest``): cameras
-with ``width``/``height``, and entities whose per-frame points carry a
-``per_cam`` list of ``{cam, uv, visible, ...}``. For a chosen point name it
-walks each entity × camera and splits the ``visible`` observations into
-**contiguous runs** — each run is one tracklet (a target leaving and re-entering
-a camera yields two tracklets there).
+Consumes the typed :class:`~multicam_occlusion.mtmc.reader.SimManifest` parsed from
+the schema ``multicam-sim`` emits (``build_manifest``): cameras with ``width`` /
+``height``, and entities whose per-frame points carry a ``per_cam`` list of
+observations. For a chosen point name it walks each entity × camera and splits the
+``visible`` observations into **contiguous runs** — each run is one tracklet (a target
+leaving and re-entering a camera yields two tracklets there).
 
 Two deliberate outputs:
 
@@ -22,18 +22,8 @@ observation timestamp.
 
 from __future__ import annotations
 
-import json
-from collections.abc import Mapping
-from pathlib import Path
-from typing import Any
-
+from .reader import CameraRecord, SimManifest
 from .tracklet import Observation, Tracklet, Zone
-
-
-def load_manifest(path: str | Path) -> dict[str, Any]:
-    """Load a multicam-sim manifest JSON file into a plain dict."""
-    data: dict[str, Any] = json.loads(Path(path).read_text())
-    return data
 
 
 def classify_zone(camera_id: int, uv: tuple[float, float], width: float, height: float) -> Zone:
@@ -49,15 +39,12 @@ def classify_zone(camera_id: int, uv: tuple[float, float], width: float, height:
     return f"cam{camera_id}:{side}"
 
 
-def _camera_dims(manifest: Mapping[str, Any]) -> dict[int, tuple[float, float]]:
-    dims: dict[int, tuple[float, float]] = {}
-    for cam in manifest["cameras"]:
-        dims[int(cam["id"])] = (float(cam["width"]), float(cam["height"]))
-    return dims
+def _camera_dims(cameras: list[CameraRecord]) -> dict[int, tuple[float, float]]:
+    return {cam.id: (float(cam.width), float(cam.height)) for cam in cameras}
 
 
 def extract_tracklets(
-    manifest: Mapping[str, Any],
+    manifest: SimManifest,
     point_name: str = "center",
 ) -> tuple[list[Tracklet], dict[str, str]]:
     """Return ``(tracklets, gt_identity_of)`` for one point across all entities.
@@ -66,28 +53,26 @@ def extract_tracklets(
     tracklet id to its source entity id (the ground-truth identity across the
     blind gap). Cameras are visited in manifest order for determinism.
     """
-    fps = float(manifest["fps"])
-    dims = _camera_dims(manifest)
-    camera_ids = [int(c["id"]) for c in manifest["cameras"]]
+    fps = manifest.fps
+    dims = _camera_dims(manifest.cameras)
+    camera_ids = [cam.id for cam in manifest.cameras]
 
     tracklets: list[Tracklet] = []
     gt_identity_of: dict[str, str] = {}
 
-    for entity in manifest["entities"]:
-        entity_id = str(entity["id"])
+    for entity in manifest.entities:
+        entity_id = entity.id
         # frame -> {cam -> uv} for visible observations of the chosen point.
         per_frame: dict[int, dict[int, tuple[float, float]]] = {}
-        for frame_entry in entity["frames"]:
-            frame = int(frame_entry["frame"])
-            point = frame_entry["points"].get(point_name)
+        for frame_entry in entity.frames:
+            frame = frame_entry.frame
+            point = frame_entry.points.get(point_name)
             if point is None:
                 continue
-            for obs in point["per_cam"]:
-                if not obs["visible"]:
+            for obs in point.per_cam:
+                if not obs.visible:
                     continue
-                cam = int(obs["cam"])
-                uv = (float(obs["uv"][0]), float(obs["uv"][1]))
-                per_frame.setdefault(frame, {})[cam] = uv
+                per_frame.setdefault(frame, {})[obs.cam] = (obs.uv[0], obs.uv[1])
 
         for cam in camera_ids:
             width, height = dims[cam]

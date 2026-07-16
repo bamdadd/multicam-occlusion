@@ -26,12 +26,14 @@ identity handoff**. This module is that path.
 
 ## Pipeline
 
-Five typed, deterministic, GPU-free stages, each an open-closed seam:
+The manifest is read through a typed pydantic front door (`mtmc.reader`,
+`SimManifest`), so a malformed manifest fails at the boundary rather than deep inside a
+stage. Five typed, deterministic, GPU-free stages, each an open-closed seam:
 
 | Stage | Module | Responsibility |
 | --- | --- | --- |
 | 1. Tracklets | `mtmc.extract` / `mtmc.tracklet` | Per-camera single-view runs of one target: observations, entry/exit **zone**, entry/exit time. |
-| 2. Topology | `mtmc.topology` | Directed graph of *possible* transitions: exit-zone → entry-zone with a transit-time distribution. |
+| 2. Topology | `mtmc.topology` / `mtmc.reader` | Directed graph of *possible* transitions: exit-zone → entry-zone with a transit-time distribution, **derived from the manifest's own station adjacency + transit times**. |
 | 3. Handoff matcher | `mtmc.matcher` | Score an exiting→entering pair by spatio-temporal plausibility first; appearance/ReID is a pluggable backend. |
 | 4. Global IDs | `mtmc.assignment` | Stitch matched tracklets into consistent global identities. |
 | 5. Metrics | `mtmc.metrics` | IDF1 and ID-switches against GT identities (identity consistency, **not** 3D error). |
@@ -102,32 +104,43 @@ time. So the score is not "using the answer to get the answer."
 
 ## The fixture and the proof
 
-The manifest core (`multicam-sim`) is the intended producer, but its ring/line rigs all
-share a look-at target, so every camera sees the scene centre — it cannot yet emit a
-**non-overlapping** rig. So the test uses a **hand-authored** manifest in the exact
-multicam-sim schema, with `visible` set directly to encode non-overlap: each entity is
-visible in exactly one camera at a time and invisible during the gap. (Upstream issue
-[bamdadd/multicam-sim#13](https://github.com/bamdadd/multicam-sim/issues/13) requests a
-non-overlap rig preset; when it lands, the fixture becomes real sim output with no
-consumer change.)
+The fixture is **real `multicam-sim` output**. Its `CameraRig.stations` preset places
+two separated stations with **disjoint fields of view** (each camera aims at its own
+station centre, so an entity near one station projects out of the other's frame and the
+stretch between them is a genuine blind gap). `bench/gen_mtmc_scene.py` builds that rig,
+sweeps two entities across the gap, and records `build_manifest`'s output to
+`tests/fixtures/mtmc_stations.json`. The scene is deterministic (pure projection, no
+RNG), so the committed JSON is byte-reproducible; regenerate it with `make mtmc-scene`.
+CI stays numpy-only — it consumes the committed manifest and never imports
+`multicam-sim` (an optional `bench` dependency). The generator's header records the
+nominal seed (`SEED = 0`; the scene is RNG-free, so this is provenance only) and the
+`make mtmc-scene` regen command.
 
-The fixture is a two-station rig (station 1 `cam0`, station 2 `cam1`) with **two** entities
+The scene is a two-station rig (station 1 `cam0`, station 2 `cam1`) with **two** entities
 crossing the gap **staggered** in time. Two entities are essential: with a single entity,
 assigning *everything* one id trivially scores IDF1 = 1.0 and the matcher is never
-exercised. Because the default appearance backend is neutral, the correct pairing
-(a→a, b→b) must be more plausible than the cross pairing (a→b, b→a) on **time alone** —
-and it is (correct `dt ≈ 0.5 s` at the transit peak; cross `dt ≈ 0.3 / 0.7 s` off-peak).
+exercised. Both entities sweep at the same constant velocity (equal true transit), with
+`item_b` released two frames after `item_a`. Because the default appearance backend is
+neutral, the correct pairing (a→a, b→b) must be more plausible than the cross pairing
+(a→b, b→a) on **time alone** — and it is (correct `dt = 0.5 s` at the transit peak; cross
+`dt = 0.3 / 0.7 s` off-peak). The topology the matcher gates on is built from the
+manifest's own station adjacency and `transit_time_s`; only the exit/entry *zones* come
+from the extractor (the image border each run used — geometry, never a GT identity), so
+the derivation stays non-circular.
 
-**Result on the fixture:**
+**Result on the generated scene** (measured, not assumed):
 
 | Assignment | IDF1 | ID-switches |
 | --- | --- | --- |
 | Spatio-temporal handoff | **1.0** | **0** |
-| No-handoff baseline (each tracklet its own id) | 0.5 | 2 |
+| No-handoff baseline (each tracklet its own id) | 0.625 | 2 |
 
 The contrast is the proof: without cross-camera reasoning each object fractures into one
-identity per camera (IDF1 0.5, 2 switches); the handoff recovers a single identity across
-the blind gap (IDF1 1.0, 0 switches).
+identity per camera (IDF1 0.625, 2 switches); the handoff recovers a single identity
+across the blind gap (IDF1 1.0, 0 switches). The baseline is 0.625 rather than a round
+0.5 because the real projected sweep gives the two entities different-length visible runs
+(one lingers longer at station 2, the other at station 1); it is reported as measured
+rather than tuned.
 
 ## Roadmap
 
@@ -137,5 +150,3 @@ the blind gap (IDF1 1.0, 0 switches).
   the swap).
 * A robust single-view tracklet extractor (detector + tracker + learned zone model),
   replacing the minimal border-based extractor here.
-* Upstream: a non-overlapping rig preset in `multicam-sim` so the fixture becomes real
-  producer output.
