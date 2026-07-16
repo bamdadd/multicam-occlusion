@@ -143,6 +143,25 @@ print(triangulate_dlt(cams, pts, mask=mask))           # ~[0.3, -0.4, 0.8]
 These are tracked as [good first issues](https://github.com/bamdadd/multicam-occlusion/issues).
 See [DESIGN.md](DESIGN.md) for the full benchmark design and evaluation protocol.
 
+## Three camera-relationship modes
+
+Multiple cameras relate to one event in three geometric regimes; the divider is
+**view overlap**. Each is a separate, typed, open-closed mode over the same
+`multicam-sim` analytic manifest — complementary, not competing.
+
+- **Triangulate** (overlapping views, *the hero above*) — recover a 3D point from
+  the views that still see it under occlusion. `triangulation.py` / `recovery.py`.
+- **Handoff / MTMC** (non-overlapping views, a blind gap) — keep one identity as
+  an entity crosses between stations. Metric IDF1 / ID-switches. `mtmc/`,
+  [docs/mtmc-design.md](docs/mtmc-design.md).
+- **Fusion** (complementary/asymmetric views) — one camera sees the operator's
+  action, another the item/assembly state; fuse them into a joint "who did what
+  to which item" and an order-verification status. `fusion/`,
+  [docs/fusion-design.md](docs/fusion-design.md).
+
+Framing is domain-neutral (assembly / order fulfilment) so it reads across
+warehouse, manufacturing, and logistics.
+
 ## Method & references
 
 Uses only public multi-view-geometry methods:

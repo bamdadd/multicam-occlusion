@@ -22,6 +22,27 @@ the observation entirely. The benchmark quantifies how additional calibrated
 views (a) make recovery possible at all, and (b) make it *robust* — so that
 losing one view to occlusion costs progressively less as the camera count grows.
 
+## Three camera-relationship modes
+
+Multiple cameras relate to one event in three fundamentally different geometric
+regimes. This project treats each as a separate, typed, open-closed mode over the
+same analytic manifest; they are complementary, not competing.
+
+| Mode | Camera relationship | What it recovers | Metric | Where |
+| --- | --- | --- | --- | --- |
+| **Triangulate** (runs today, the hero) | **Overlapping** views of the same point | 3D position from the views that still see it despite occlusion | recovery error vs occlusion dose | `triangulation.py`, `recovery.py` |
+| **Handoff / MTMC** | **Non-overlapping** views, a blind gap between stations | one consistent identity as an entity crosses the gap | IDF1 / ID-switches | `mtmc/`, [`docs/mtmc-design.md`](docs/mtmc-design.md) |
+| **Fusion** | **Complementary / asymmetric** views (each sees a *different aspect* of the event) | a joint scene state — which operator action produced which assembly change | action↔assembly-change association + timing; order-verification status | `fusion/`, [`docs/fusion-design.md`](docs/fusion-design.md) |
+
+The dividing line is **view overlap**: overlap → triangulate; no overlap → hand
+off identity across the gap; overlap present but each camera observes a *distinct
+facet* (operator activity vs item/assembly state) → fuse rather than triangulate.
+All three consume `multicam-sim`'s analytic manifest (per-entity, per-camera
+`visible` labels), so a scene declares which mode applies by its visibility
+structure. Framing is domain-neutral (assembly / order fulfilment: an operator
+assembles an order into a container at an assembly station), so the modes read
+across warehouse, manufacturing, and logistics settings.
+
 ## Scene model
 
 ### Cameras (runs today)
