@@ -129,7 +129,8 @@ def back_project(
 
 def _scene_centroid(entity: ObsEntity, point_name: str) -> FloatArray:
     pts = [f.points[point_name].gt() for f in entity.frames if point_name in f.points]
-    return np.mean(np.stack(pts, axis=0), axis=0)
+    centroid: FloatArray = np.mean(np.stack(pts, axis=0), axis=0)
+    return centroid
 
 
 def _aligned_observations(point: PointObs, n_cams: int) -> tuple[FloatArray, npt.NDArray[np.bool_]]:
