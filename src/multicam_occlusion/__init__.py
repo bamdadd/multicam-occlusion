@@ -5,6 +5,7 @@ when it is occluded in some views; a single view is fundamentally insufficient
 (the observation constrains the point only to a ray).
 """
 
+from multicam_occlusion.metrics import mpjpe
 from multicam_occlusion.observation import (
     ObsCamera,
     ObsEntity,
@@ -56,6 +57,7 @@ __all__ = [
     "back_project",
     "build_ring_cameras",
     "drop_k_mask",
+    "mpjpe",
     "occlude",
     "project_points",
     "recover_trajectory",
