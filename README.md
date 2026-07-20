@@ -23,9 +23,10 @@ analytic image-space label; no renderer in the loop). Two estimators run per joi
   global worst camera, so the gap is real geometry rather than a strawman.
 
 **Left panel, accuracy.** On joints both can solve, multi-view error is flat and low
-(about 0.006 to 0.008 world units) across the whole dose. Single-view is depth-blind
-and sits at 0.05 to 0.15, roughly 7x to 24x worse. One pixel fixes only a ray, and its
-depth is unobservable whether or not anything is occluded.
+(about 0.006 to 0.008 world units) across the whole dose. Single-view starts level with
+it at the lowest dose, then climbs to 0.05 to 0.15 once occlusion sets in, roughly 7x to
+24x worse. One pixel fixes only a ray, and its depth is unobservable, so single-view
+degrades the moment its best camera loses the joint.
 
 **Right panel, coverage (the honesty gate).** The flat multi-view error is partly
 survivorship: `multi_mpjpe` averages only joints with >= 2 visible cameras, and that
@@ -35,9 +36,11 @@ sightline at once, and single-view coverage falls almost identically (0.94 to 0.
 So the multi-view advantage here is per-joint accuracy, not coverage: both estimators
 lose roughly the same hard joints.
 
-There is no crossover; multi-view error stays far below single-view at every dose. The
-honest caveat is not a narrowing gap, it is the dropped joints hidden behind the flat
-curve.
+The gap opens with occlusion rather than sitting there from the start. At the lowest
+dose the two are a near-tie (0.0060 single vs 0.0061 multi, single marginally better);
+multi-view pulls ~20x ahead only as occlusion rises and single-view's depth-blindness
+compounds. The honest caveat is not a narrowing gap, it is the dropped joints hidden
+behind multi-view's flat curve.
 
 ## Results
 
