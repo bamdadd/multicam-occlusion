@@ -17,8 +17,12 @@ from multicam_occlusion.observation import (
 from multicam_occlusion.occlusion import drop_k_mask, occlude
 from multicam_occlusion.recovery import (
     FrameRecovery,
+    JointFrame,
+    PoseRecovery,
     TrajectoryRecovery,
     back_project,
+    best_camera_per_joint,
+    recover_pose,
     recover_trajectory,
 )
 from multicam_occlusion.sources import (
@@ -46,6 +50,7 @@ __all__ = [
     "FrameRecovery",
     "FrameRef",
     "FrameSource",
+    "JointFrame",
     "Manifest",
     "ObsCamera",
     "ObsEntity",
@@ -53,13 +58,16 @@ __all__ = [
     "ObservationManifest",
     "PerCam",
     "PointObs",
+    "PoseRecovery",
     "TrajectoryRecovery",
     "back_project",
+    "best_camera_per_joint",
     "build_ring_cameras",
     "drop_k_mask",
     "mpjpe",
     "occlude",
     "project_points",
+    "recover_pose",
     "recover_trajectory",
     "triangulate_dlt",
 ]

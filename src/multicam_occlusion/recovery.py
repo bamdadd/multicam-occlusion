@@ -143,6 +143,138 @@ def _aligned_observations(point: PointObs, n_cams: int) -> tuple[FloatArray, npt
     return uv, visible
 
 
+def _aligned_visible_fraction(point: PointObs, n_cams: int) -> FloatArray:
+    """Return ``visible_fraction`` per camera (index order).
+
+    Requires the producer to have emitted the image-space labels; a missing
+    ``visible_fraction`` is an error here because the per-joint-fair single-view
+    baseline and the occlusion dose both depend on it.
+    """
+    vf = np.zeros(n_cams, dtype=np.float64)
+    for obs in point.per_cam:
+        if obs.visible_fraction is None:
+            raise ValueError(
+                "manifest lacks visible_fraction; rebuild it with "
+                "build_manifest(scene, object_radius=...)"
+            )
+        vf[obs.cam] = obs.visible_fraction
+    return vf
+
+
+@dataclass(frozen=True)
+class JointFrame:
+    """One joint at one frame: both estimators' errors, plus visibility bookkeeping."""
+
+    joint: str
+    frame: int
+    n_visible: int
+    multi_err: float | None  # None when < 2 cameras see the joint (unrecoverable)
+    single_err: float
+    single_observed: bool  # did the joint's best camera actually see it this frame?
+
+
+@dataclass(frozen=True)
+class PoseRecovery:
+    """A whole posed skeleton's recovery: per (joint, frame) records + provenance."""
+
+    records: list[JointFrame]
+    best_cam: dict[str, int]  # the per-joint-fair single-view camera choice
+    n_cams: int
+
+
+def best_camera_per_joint(entity: ObsEntity, joints: list[str]) -> dict[str, int]:
+    """Per joint, the camera with the highest mean ``visible_fraction``.
+
+    This is the per-joint-fair single-view baseline: each joint is scored by its
+    own best viewpoint, not one global camera. Ties break to the lowest camera id.
+    """
+    n_cams = 1 + max(obs.cam for f in entity.frames for p in f.points.values() for obs in p.per_cam)
+    best: dict[str, int] = {}
+    for joint in joints:
+        totals = np.zeros(n_cams, dtype=np.float64)
+        count = 0
+        for frame in entity.frames:
+            if joint not in frame.points:
+                continue
+            totals += _aligned_visible_fraction(frame.points[joint], n_cams)
+            count += 1
+        mean_vf = totals / count if count else totals
+        best[joint] = int(np.argmax(mean_vf))  # argmax breaks ties to lowest index
+    return best
+
+
+def recover_pose(
+    manifest: ObservationManifest,
+    *,
+    entity_id: str | None = None,
+    joints: list[str] | None = None,
+    pixel_noise: float = 0.0,
+    seed: int = 0,
+) -> PoseRecovery:
+    """Recover every joint of a posed skeleton with both estimators.
+
+    * multi-view: per joint per frame, DLT over that joint's visible cameras
+      (>= 2), exactly as the single-point path.
+    * single-view (per-joint-fair): each joint is back-projected from *its own*
+      best camera (max mean ``visible_fraction``) to that joint's centroid-depth
+      prior; when the best camera is occluded that frame, it falls back to the
+      joint centroid (the zero-information monocular prior).
+
+    Deterministic given ``seed``: joints and frames are walked in sorted order so
+    the seeded pixel-noise draws are stable.
+    """
+    entity = _entity(manifest, entity_id)
+    all_joints = sorted({name for f in entity.frames for name in f.points})
+    joints = all_joints if joints is None else [j for j in joints if j in all_joints]
+    proj_mats = manifest.projection_matrices()
+    n_cams = len(manifest.cameras)
+    rng = np.random.default_rng(seed)
+
+    best_cam = best_camera_per_joint(entity, joints)
+    records: list[JointFrame] = []
+    for joint in joints:
+        cam_idx = best_cam[joint]
+        cam = manifest.cameras[cam_idx]
+        c_center, c_rot, c_k = cam.centre(), cam.rotation(), cam.intrinsic_matrix()
+        centroid = _scene_centroid(entity, joint)
+        depth_prior = float((c_rot @ (centroid - c_center))[2])
+
+        for frame in entity.frames:
+            if joint not in frame.points:
+                continue
+            point = frame.points[joint]
+            gt = point.gt()
+            uv, visible = _aligned_observations(point, n_cams)
+            noisy = uv.copy()
+            if pixel_noise > 0.0:
+                noisy[visible] += rng.normal(0.0, pixel_noise, size=(int(visible.sum()), 2))
+
+            multi_err: float | None = None
+            if int(visible.sum()) >= 2:
+                est = triangulate_dlt(proj_mats, noisy, mask=visible)
+                multi_err = float(np.linalg.norm(est - gt))
+
+            if visible[cam_idx]:
+                est_s = back_project(c_center, c_rot, c_k, noisy[cam_idx], depth_prior)
+                single_err = float(np.linalg.norm(est_s - gt))
+                observed = True
+            else:
+                single_err = float(np.linalg.norm(centroid - gt))
+                observed = False
+
+            records.append(
+                JointFrame(
+                    joint=joint,
+                    frame=frame.frame,
+                    n_visible=int(visible.sum()),
+                    multi_err=multi_err,
+                    single_err=single_err,
+                    single_observed=observed,
+                )
+            )
+    return PoseRecovery(records=records, best_cam=best_cam, n_cams=n_cams)
+
+
 def recover_trajectory(
     manifest: ObservationManifest,
     *,
