@@ -545,7 +545,7 @@ docs = [{ name = "matplotlib", specifier = ">=3.8" }]
 [[package]]
 name = "multicam-sim"
 version = "0.1.0"
-source = { git = "https://github.com/bamdadd/multicam-sim?rev=main#4ae4e8df23f2472d47eb6e44d095ceb101598efb" }
+source = { git = "https://github.com/bamdadd/multicam-sim?rev=main#b2e6b0e0a09eec2b25616efacbb96af62254bf74" }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
