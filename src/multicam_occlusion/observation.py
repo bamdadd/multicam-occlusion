@@ -101,7 +101,15 @@ class ObsCamera(BaseModel):
 
 
 class PerCam(BaseModel):
-    """One camera's observation of one point: pixel + two occlusion signals."""
+    """One camera's observation of one point: pixel + occlusion signals.
+
+    ``visible_fraction`` / ``occluded`` are multicam-sim's opt-in image-space
+    occlusion labels (the fraction of the object's silhouette this camera still
+    sees, and whether any nearer occluder eats into it). They are ``None`` when
+    the producer did not emit them, so an older manifest still loads. When
+    present, ``visible_fraction`` is the continuous occlusion dose this benchmark
+    bins on.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -109,11 +117,19 @@ class PerCam(BaseModel):
     uv: list[float] = Field(description="pixel [u, v]")
     visible: bool = Field(description="hard DLT mask: in-front AND in-image AND unblocked")
     occ_frac: float = Field(default=0.0, description="continuous occlusion knob; never masks")
+    visible_fraction: float | None = Field(
+        default=None, description="image-space silhouette fraction visible in [0,1]; None if absent"
+    )
+    occluded: bool | None = Field(
+        default=None, description="any nearer occluder covers the silhouette (visible_fraction<1)"
+    )
 
     @model_validator(mode="after")
     def _check(self) -> PerCam:
         if len(self.uv) != 2:
             raise ValueError(f"camera {self.cam}: uv must be [u, v]")
+        if self.visible_fraction is not None and not 0.0 <= self.visible_fraction <= 1.0:
+            raise ValueError(f"camera {self.cam}: visible_fraction must be in [0, 1]")
         return self
 
     def uv_array(self) -> FloatArray:
