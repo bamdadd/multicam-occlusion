@@ -16,6 +16,14 @@ import numpy.typing as npt
 
 FloatArray = npt.NDArray[np.float64]
 
+#: Rank test for the DLT system: ``sigma[-1] / sigma[-2]`` above this is treated
+#: as rank-deficient. A well-posed solve leaves ``sigma[-2]`` at signal scale
+#: while ``sigma[-1]`` collapses, so the ratio is ~1e-14 on exact observations
+#: and stays below ~4e-2 under the DESIGN.md 0.5px pixel noise; a 2D null space
+#: collapses both together and drives the ratio to O(1). 0.1 is the log-midpoint
+#: of those measured populations -- see ``tests/test_triangulation_degenerate.py``.
+DEGENERACY_RATIO_TOL = 0.1
+
 
 def look_at_rotation(eye: FloatArray, target: FloatArray, up: FloatArray) -> FloatArray:
     """Return a world-to-camera rotation R for a camera at ``eye`` looking at ``target``.
@@ -100,7 +108,10 @@ def triangulate_dlt(
 
     Raises:
         ValueError: if fewer than two views are visible (a single view
-            constrains the point only to a ray and cannot recover depth).
+            constrains the point only to a ray and cannot recover depth); if
+            the DLT system is rank-deficient, which happens when the target
+            lies on the baseline of the contributing views; or if the
+            recovered point is at infinity.
     """
     proj_mats = np.asarray(proj_mats, dtype=np.float64)
     points2d = np.asarray(points2d, dtype=np.float64)
@@ -127,8 +138,22 @@ def triangulate_dlt(
 
     # Homogeneous least squares: solution is the right-singular vector of the
     # smallest singular value.
-    _, _, vt = np.linalg.svd(a_matrix)
+    _, sigma, vt = np.linalg.svd(a_matrix)
     solution = vt[-1]
+
+    # Rank test before anything is read off the solution vector. A well-posed
+    # system has a 1D null space, so only sigma[-1] collapses. When the target
+    # lies on the baseline joining the contributing camera centres the null
+    # space is 2D: sigma[-2] collapses with it and vt[-1] is an arbitrary vector
+    # from that space -- a point that is silently wrong along the baseline
+    # rather than one detectably at infinity. Checked first because rank
+    # deficiency invalidates the whole vector, its last coordinate included.
+    if sigma[-2] <= 0.0 or float(sigma[-1] / sigma[-2]) > DEGENERACY_RATIO_TOL:
+        raise ValueError(
+            "degenerate configuration: rank-deficient DLT system "
+            f"(sigma[-1]/sigma[-2] > {DEGENERACY_RATIO_TOL}); the target may lie on "
+            "the baseline joining the contributing camera centres"
+        )
     if abs(solution[3]) < 1e-12:
         raise ValueError("degenerate configuration: recovered point at infinity")
     point3d: FloatArray = solution[:3] / solution[3]

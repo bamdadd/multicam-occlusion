@@ -166,7 +166,8 @@ print(triangulate_dlt(cams, pts, mask=mask))           # ~[0.3, -0.4, 0.8]
 - `build_ring_cameras` — synthetic calibrated pinhole cameras on a ring
   (`P = K[R|t]`, OpenCV convention).
 - `triangulate_dlt` — linear Direct Linear Transformation triangulation from any
-  subset of visible views; refuses degenerate (<2-view) solves.
+  subset of visible views; refuses degenerate solves (<2 views, a rank-deficient
+  system, or a point at infinity) instead of returning a silently wrong point.
 - `drop_k_mask` / `occlude` — deterministic, seed-reproducible occlusion masks.
 - **`ObservationManifest`** — a typed loader for multicam-sim's *analytic
   observation manifest* (per-frame per-camera `uv` + `visible` + `xyz_gt`),

@@ -152,7 +152,9 @@ Stacking the rows from all visible views gives a homogeneous system `A X = 0`;
 the solution is the right-singular vector of `A` for its smallest singular
 value (SVD). `triangulate_dlt` takes the visibility mask directly and solves
 from the visible subset only, raising on `< 2` visible views (a ray, not a
-point) or a recovered point at infinity (degenerate configuration).
+point), on a rank-deficient system (`sigma[-1] / sigma[-2]` above
+`DEGENERACY_RATIO_TOL`, which is what a target on the baseline of the
+contributing views produces), or on a recovered point at infinity.
 
 **Roadmap:** a robust variant (RANSAC over view subsets, or an M-estimator) for
 observations contaminated by outliers, and an optional non-linear refinement
