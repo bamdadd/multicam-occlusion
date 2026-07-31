@@ -34,3 +34,34 @@ jobs:
 
       - name: Pytest
         run: uv run pytest -q
+
+  # Regenerate the occlusion grid (table + figure) on every run and publish it as
+  # a downloadable artifact, so the figure can never drift from the code that made
+  # it. Separate from `check` because it needs the optional `docs` group
+  # (matplotlib), which the numpy-only gate above deliberately never installs.
+  sweep-figure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Sync dependencies (with docs group)
+        run: uv sync --group docs
+
+      - name: Sweep the occlusion grid
+        run: uv run python bench/sweep_grid.py
+
+      - name: Upload sweep artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: occlusion-sweep-grid
+          path: |
+            docs/recovery_grid.json
+            docs/recovery_grid.png
