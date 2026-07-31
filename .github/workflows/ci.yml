@@ -56,7 +56,7 @@ jobs:
         run: uv sync --group docs
 
       - name: Sweep the occlusion grid
-        run: uv run python bench/sweep_grid.py
+        run: uv run --group docs python bench/sweep_grid.py
 
       - name: Upload sweep artifact
         uses: actions/upload-artifact@v4
