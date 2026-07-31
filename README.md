@@ -105,6 +105,13 @@ and drive error down, and the cost of losing one view to occlusion (dashed)
 shrinks toward zero as the ring grows. Regenerate with
 `uv run python docs/plot_recovery_vs_views.py`.*
 
+![recovery error vs number of occluded views](docs/recovery_vs_occlusion.png)
+
+*Same 0.5px noise on a fixed 8-camera ring, occluding `k_drop` views per seed:
+mean recovery error rises from 0.00158 with all 8 views to 0.00376 with only 2
+visible — a 2.4x increase, steepest on the last drop. Regenerate with
+`uv run --group docs python docs/plot_recovery_vs_occlusion.py`.*
+
 ## Hero: single view fails, multi-view recovers the occluded point
 
 Project one known 3D point into six synthetic ring cameras, occlude it in three
