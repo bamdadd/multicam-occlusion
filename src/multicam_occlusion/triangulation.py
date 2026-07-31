@@ -29,7 +29,8 @@ DEGENERACY_RATIO_TOL = 0.1
 #: n = 3..8) at the DESIGN.md 0.5px pixel noise: the residual a clean two-view
 #: hypothesis leaves at the other clean views has median 0.88px and p99.9
 #: 4.71px over 151200 samples, while a view displaced by 20px per coordinate
-#: never falls below 23.8px. 5.0 is the smallest round number above that clean
+#: has a measured minimum residual of 23.8px over 22400 samples.
+#: 5.0 is the smallest round number above that clean
 #: p99.9 -- also 10x the DESIGN.md noise level -- and sits 4.8x below the
 #: cheapest gross outlier. Biased low on purpose: too low only drops a clean
 #: view from the refit, too high admits the outlier and defeats the function.
