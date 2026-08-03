@@ -39,6 +39,7 @@ from multicam_occlusion.triangulation import (
     build_ring_cameras,
     project_points,
     triangulate_dlt,
+    triangulate_robust,
 )
 
 __all__ = [
@@ -70,6 +71,7 @@ __all__ = [
     "recover_pose",
     "recover_trajectory",
     "triangulate_dlt",
+    "triangulate_robust",
 ]
 
 __version__ = "0.1.0"
